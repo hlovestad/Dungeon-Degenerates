@@ -14,6 +14,7 @@ const THEMES = {
   bg_treasure_vault: { wall: '#3a3020', floor: '#2e2618', accent: '#f7c548', props: 'vault' },
   bg_rest_campfire: { wall: '#1e1a2a', floor: '#221e2a', accent: '#f7a038', props: 'rest', rough: true },
   bg_devil_shrine: { wall: '#3a1418', floor: '#2a1014', accent: '#ff5a28', props: 'devil' },
+  bg_trivia_stage: { wall: '#2a1a3a', floor: '#3a2a20', accent: '#f7e048', props: 'stage' },
   bg_boulder_pass: { wall: '#34303e', floor: '#2a2632', accent: '#f7a038', props: 'pass', rough: true },
   bg_title: { wall: '#2a2238', floor: '#221c2e', accent: '#f7a038', props: 'title' },
 };
@@ -195,6 +196,18 @@ export function drawBackground(key) {
       ctx.globalAlpha = 0.35; ell(160, FLOOR + 30, 120, 20, th.accent); ctx.globalAlpha = 1;
       ell(160, FLOOR + 20, 40, 8, '#5a1418'); ell(160, FLOOR + 20, 36, 6, '#2a1014');
       torch(110, 50); torch(210, 50);
+      break;
+    }
+    case 'stage': {
+      // red curtains, spotlights, a glittery sign frame (no text)
+      for (let x = 0; x < 60; x += 6) { R(x, 0, 5, FLOOR, x % 12 ? '#8a1c2b' : '#6a1420'); R(BW - 60 + x, 0, 5, FLOOR, x % 12 ? '#8a1c2b' : '#6a1420'); }
+      R(0, 0, BW, 10, '#6a1420'); for (let x = 0; x < BW; x += 10) ell(x + 5, 10, 5, 3, '#8a1c2b');
+      R(110, 18, 100, 28, '#f7c548'); R(113, 21, 94, 22, '#2a1a3a');
+      for (let x = 112; x < 210; x += 8) { P(x, 19, '#ffffff'); P(x + 4, 45, '#ffffff'); }
+      ctx.globalAlpha = 0.12;
+      for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.fillStyle = '#fff6c0'; ctx.moveTo(80 + i * 80, 0); ctx.lineTo(50 + i * 90, FLOOR + 40); ctx.lineTo(110 + i * 90, FLOOR + 40); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      R(220, FLOOR - 26, 40, 26, '#5a3a8a'); R(220, FLOOR - 26, 40, 3, '#f7c548'); R(234, FLOOR - 20, 12, 12, '#d9473c');
       break;
     }
     case 'pass': {

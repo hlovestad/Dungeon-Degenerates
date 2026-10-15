@@ -9,7 +9,7 @@ export const CLASSES = {
     name: 'Juggernaut',
     mods: { hp: 8, atk: 1, def: 2, spd: -1 },
     ability: {
-      id: 'skull_crack', name: 'Skull Crack', cooldown: 2, target: 'enemy',
+      id: 'skull_crack', short: 'Big hit. Might stun.', name: 'Skull Crack', cooldown: 2, target: 'enemy',
       desc: 'Heavy hit (160%). 35% chance to stun.',
     },
     sigBonus: 'Haakon: stun chance 70%.',
@@ -20,7 +20,7 @@ export const CLASSES = {
     name: 'Goblin King',
     mods: { hp: 2, atk: 1, def: 1, spd: 0 },
     ability: {
-      id: 'royal_decree', name: 'Royal Decree', cooldown: 3, target: 'none',
+      id: 'royal_decree', short: 'Enemies hit softer. Goblins kneel.', name: 'Royal Decree', cooldown: 3, target: 'none',
       desc: 'All enemies deal 30% less damage for 2 turns. Goblins are stunned.',
     },
     sigBonus: 'Mike: also heals the party 5 HP.',
@@ -31,7 +31,7 @@ export const CLASSES = {
     name: 'Cosmic Oracle',
     mods: { hp: 0, atk: 2, def: 0, spd: 1 },
     ability: {
-      id: 'third_eye_beam', name: 'Cosmic Beam', cooldown: 2, target: 'none',
+      id: 'third_eye_beam', short: 'Zap ALL enemies.', name: 'Cosmic Beam', cooldown: 2, target: 'none',
       desc: 'Magic beam hits every enemy for 70%, ignoring defense.',
     },
     sigBonus: 'Josh: beam hits for 100% and marks a new weakness.',
@@ -42,7 +42,7 @@ export const CLASSES = {
     name: 'Hellbound Gambler',
     mods: { hp: 0, atk: 1, def: 0, spd: 2 },
     ability: {
-      id: 'long_shot', name: 'Long Shot', cooldown: 1, target: 'enemy',
+      id: 'long_shot', short: 'Tiny odds. HUGE hit.', name: 'Long Shot', cooldown: 1, target: 'enemy',
       desc: '8% chance to deal 600% damage. Otherwise a sad 50% poke.',
     },
     sigBonus: 'Griffin: base chance 10% (doubled to 20% by his race).',
@@ -53,7 +53,7 @@ export const CLASSES = {
     name: 'Cleric',
     mods: { hp: 4, atk: -1, def: 1, spd: 0 },
     ability: {
-      id: 'mend', name: 'Mend', cooldown: 2, target: 'none',
+      id: 'mend', short: 'Heal the whole party.', name: 'Mend', cooldown: 2, target: 'none',
       desc: 'Heal every ally for 30% of their max HP.',
     },
     sigBonus: null,
@@ -64,7 +64,7 @@ export const CLASSES = {
     name: 'Rogue',
     mods: { hp: -2, atk: 2, def: 0, spd: 3 },
     ability: {
-      id: 'backstab', name: 'Backstab', cooldown: 2, target: 'enemy',
+      id: 'backstab', short: 'Likely crit. Steal gold.', name: 'Backstab', cooldown: 2, target: 'enemy',
       desc: '100% hit with a 45% crit chance. Steals 5-15 gold.',
     },
     sigBonus: null,

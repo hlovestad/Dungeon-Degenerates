@@ -8,6 +8,8 @@ import { ShopScene } from './scenes/Shop.js';
 import { CasinoScene } from './scenes/Casino.js';
 import { EventScene } from './scenes/Event.js';
 import { EndScene } from './scenes/End.js';
+import { TriviaScene } from './minigames/Trivia.js';
+import { WhackScene } from './minigames/Whack.js';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -22,7 +24,7 @@ const game = new Phaser.Game({
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   input: { activePointers: 2 },
-  scene: [BootScene, TitleScene, PartyScene, MapScene, BattleScene, ShopScene, CasinoScene, EventScene, EndScene],
+  scene: [BootScene, TitleScene, PartyScene, MapScene, BattleScene, ShopScene, CasinoScene, EventScene, EndScene, TriviaScene, WhackScene],
 });
 
 // Handy for debugging from the browser console.

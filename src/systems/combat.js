@@ -6,6 +6,7 @@
 import { ENEMIES } from '../data/enemies.js';
 import { CLASSES } from '../data/classes.js';
 import { run, rng } from './state.js';
+import { HERO_QUIPS, BUSH_LINES, BUSH_OUT, DEATH_LINES, MODIFIERS } from '../data/banter.js';
 
 const HIT_CHANCE = 0.92;
 const BASE_CRIT = 0.08;
@@ -36,7 +37,27 @@ export function createBattle(enemyIds, type, depth = 1) {
       cd: 0, st: {}, turns: 0,
     });
   });
-  return { type, units, order: [], turn: 0, round: 0, over: null, daniCd: 1, daniForced: !!run.flags.daniAngry };
+  const b = { type, units, order: [], turn: 0, round: 0, over: null, daniCd: 1, daniForced: !!run.flags.daniAngry, pending: [], quipped: {} };
+  b.mod = pickModifier(b);
+  return b;
+}
+
+// A silly rule for this fight (not for bosses). Roughly 60% of fights get one.
+function pickModifier(b) {
+  if (b.type === 'boss' || !rng.chance(0.6)) return null;
+  const ok = Object.entries(MODIFIERS).filter(([, m]) => !m.needs || heroes(b).some((h) => h.race === m.needs && h.alive));
+  return ok.length ? rng.pick(ok)[0] : null;
+}
+
+// Heroes only crack jokes some of the time, and never twice in a row about the same thing.
+function quip(b, u, kind, ev, chance = 0.4) {
+  if (!u || u.side !== 'hero') return;
+  const lines = HERO_QUIPS[u.race]?.[kind];
+  if (!lines || !rng.chance(chance)) return;
+  const key = u.uid + kind;
+  if (b.quipped[key] === b.round) return;
+  b.quipped[key] = b.round;
+  ev.push({ t: 'say', uid: u.uid, text: rng.pick(lines) });
 }
 
 export const unit = (b, uid) => b.units.find((u) => u.uid === uid);
@@ -52,7 +73,14 @@ function newRound(b) {
     .sort((a, c) => c.k - a.k)
     .map((x) => x.u.uid);
   b.turn = 0;
+  if (b.mod === 'cheese' && b.round > 1) {
+    b.pending.push({ t: 'log', text: 'Cursed cheese kicks in. Everyone heals 4.' });
+    aliveOf(b.units).forEach((u) => healUnit(u, 4, b.pending));
+  }
 }
+
+// Units that can be hit right now (Josh in the bush can't).
+const targetable = (list) => list.filter((u) => u.alive && !u.st.bush);
 
 // ---------- Battle start ----------
 export function startBattle(b) {
@@ -60,6 +88,14 @@ export function startBattle(b) {
   run.stats.fights++;
   const josh = heroes(b).find((u) => u.race === 'josh' && u.alive);
   const isAlien = b.type === 'alien';
+  if (b.mod) {
+    const m = MODIFIERS[b.mod];
+    ev.push({ t: 'modifier', name: m.name, desc: m.desc });
+    if (b.mod === 'mom') {
+      const h = heroes(b).find((u) => u.race === 'haakon');
+      ev.push({ t: 'say', uid: h.uid, text: 'Hi Mom!' });
+    }
+  }
 
   if (isAlien && josh) {
     ev.push({ t: 'say', uid: josh.uid, text: 'Oh no. Not again.' });
@@ -74,6 +110,15 @@ export function startBattle(b) {
     target.st.weak = 99;
     ev.push({ t: 'reveal', uid: target.uid, from: josh.uid });
     ev.push({ t: 'log', text: `Josh's third eye spots a weak point on the ${target.name}. It takes +25% damage.` });
+  }
+  // Josh does not do dogs. He watches from a bush until half of them are down.
+  const dogs = enemies(b).filter((e) => e.key === 'dire_wolf').length;
+  if (josh && dogs) {
+    josh.st.bush = true;
+    b.bushNeed = Math.ceil(dogs / 2);
+    ev.push({ t: 'bush', uid: josh.uid, action: 'in' });
+    ev.push({ t: 'say', uid: josh.uid, text: "I'm not gonna get in the middle of that." });
+    ev.push({ t: 'log', text: `Josh dives into a bush. He'll come out once ${b.bushNeed} dog${b.bushNeed > 1 ? 's are' : ' is'} down.` });
   }
   const griffin = heroes(b).find((u) => u.race === 'griffin' && u.alive);
   if (griffin && run.flags.daniDate) {
@@ -93,8 +138,20 @@ export function startBattle(b) {
 // Called at the start of whoever's turn it is. Returns { events, skip }.
 export function beginTurn(b) {
   const u = current(b);
-  const ev = [];
+  const ev = b.pending.splice(0);
   if (!u || !u.alive) return { events: ev, skip: true };
+  if (u.st.bush) {
+    const dogsDown = enemies(b).filter((e) => e.key === 'dire_wolf' && !e.alive).length;
+    const othersUp = heroes(b).some((h) => h !== u && h.alive);
+    if (dogsDown >= b.bushNeed || !othersUp) {
+      delete u.st.bush;
+      ev.push({ t: 'bush', uid: u.uid, action: 'out' });
+      ev.push({ t: 'say', uid: u.uid, text: othersUp ? rng.pick(BUSH_OUT) : 'Fine. FINE. I am coming.' });
+    } else {
+      ev.push({ t: 'say', uid: u.uid, text: rng.pick(BUSH_LINES), bush: true });
+      return { events: ev, skip: true };
+    }
+  }
   delete u.st.defend;
   delete u.st.taunt;
   if (u.cd > 0) u.cd--;
@@ -104,6 +161,11 @@ export function beginTurn(b) {
     u.st.stun--;
     if (!u.st.stun) delete u.st.stun;
     ev.push({ t: 'status', uid: u.uid, text: 'STUNNED', color: 'grey' });
+    return { events: ev, skip: true };
+  }
+  if (b.mod === 'naptime' && u.side === 'enemy' && rng.chance(0.2)) {
+    ev.push({ t: 'say', uid: u.uid, text: '*snore*' });
+    ev.push({ t: 'status', uid: u.uid, text: 'DOZED OFF', color: 'grey' });
     return { events: ev, skip: true };
   }
 
@@ -184,6 +246,8 @@ function dealDamage(b, attacker, target, raw, opts = {}) {
   if (target.race === 'mike' && attacker && attacker.side === 'enemy' && attacker.faction !== 'goblin') dmg *= 1.12;
   if (target.st.weak) dmg *= 1.25;
   if (attacker && attacker.st.decree) dmg *= 0.7;
+  if (b.mod === 'mom' && attacker && attacker.race === 'haakon') dmg *= 1.4;
+  if (attacker && attacker.pm) dmg *= attacker.pm;
   if (target.st.defend) dmg *= 0.5;
   dmg *= 0.88 + rng.next() * 0.24;
   if (opts.crit) dmg *= 2;
@@ -192,24 +256,33 @@ function dealDamage(b, attacker, target, raw, opts = {}) {
   ev.push({ t: 'damage', uid: target.uid, amount: dmg, crit: !!opts.crit, big: !!opts.big });
   if (target.hp <= 0) {
     target.alive = false;
+    if (target.side === 'enemy' && rng.chance(0.45)) ev.push({ t: 'say', uid: target.uid, text: rng.pick(DEATH_LINES[target.faction] || ['Ugh.']) });
     ev.push({ t: 'die', uid: target.uid });
-    if (target.side === 'enemy') run.stats.kills++;
-    else { run.stats.deaths++; ev.push({ t: 'log', text: `${target.name} is down!` }); }
+    if (target.side === 'enemy') {
+      run.stats.kills++;
+      if (attacker && attacker.race === 'mike' && target.faction === 'goblin') quip(b, attacker, 'killGoblin', ev, 0.7);
+      else quip(b, attacker, 'kill', ev, 0.35);
+    } else { run.stats.deaths++; ev.push({ t: 'log', text: `${target.name} is down!` }); }
+  } else if (target.side === 'hero' && target.hp / target.maxHp < 0.35) {
+    quip(b, target, 'hurt', ev, 0.35);
   }
   return dmg;
 }
 
-function rollHit(attacker) {
+function rollHit(b, attacker) {
   let p = HIT_CHANCE;
   if (attacker.st.probed) p -= 0.4;
+  if (b.mod === 'greased') p -= 0.15;
   return rng.chance(p);
 }
 
 function basicStrike(b, a, target, mult, ev, opts = {}) {
   ev.push({ t: 'attack', uid: a.uid, target: target.uid, kind: opts.kind || 'melee' });
-  if (!opts.noMiss && !rollHit(a)) {
+  if (!opts.noMiss && !rollHit(b, a)) {
     ev.push({ t: 'damage', uid: target.uid, miss: true });
     if (a.st.probed) ev.push({ t: 'log', text: `${a.name} is still seeing stars from the probe. Miss!` });
+    else if (b.mod === 'greased' && rng.chance(0.4)) ev.push({ t: 'log', text: `${a.name} slips on the butter.` });
+    quip(b, a, 'miss', ev);
     return 0;
   }
   let m = mult;
@@ -218,8 +291,10 @@ function basicStrike(b, a, target, mult, ev, opts = {}) {
     ev.push({ t: 'status', uid: a.uid, text: 'OPENING BLOW', color: 'gold' });
   }
   a.firstHit = false;
-  const crit = opts.crit ?? rng.chance(luck(BASE_CRIT, a));
-  return dealDamage(b, a, target, a.atk * m, { crit, ev, big: opts.big });
+  const crit = opts.crit ?? rng.chance(luck(BASE_CRIT * (b.mod === 'hype' ? 3 : 1), a));
+  const dmg = dealDamage(b, a, target, a.atk * m, { crit, ev, big: opts.big });
+  if (crit && target.alive) quip(b, a, 'crit', ev, 0.5);
+  return dmg;
 }
 
 // ---------- Hero actions ----------
@@ -260,8 +335,11 @@ export function heroAction(b, actorUid, action) {
     case 'ability': {
       const ab = CLASSES[a.cls].ability;
       a.cd = ab.cooldown + 1;
-      ev.push({ t: 'ability', uid: a.uid, name: ab.name });
-      doAbility(b, a, ab.id, target, sig, ev);
+      // Power meter result from the timing minigame: perfect / good / weak.
+      a.pm = POWER[action.quality] ?? 1;
+      ev.push({ t: 'ability', uid: a.uid, name: ab.name, quality: action.quality });
+      doAbility(b, a, ab.id, target, sig, ev, action.quality);
+      delete a.pm;
       break;
     }
   }
@@ -269,13 +347,15 @@ export function heroAction(b, actorUid, action) {
   return ev;
 }
 
-function doAbility(b, a, id, target, sig, ev) {
+export const POWER = { perfect: 1.5, good: 1, weak: 0.7 };
+
+function doAbility(b, a, id, target, sig, ev, quality) {
   const foes = aliveOf(enemies(b));
   const pals = aliveOf(heroes(b));
   switch (id) {
     case 'skull_crack': {
       const dmg = basicStrike(b, a, target, 1.6, ev, { big: true });
-      if (dmg && target.alive && rng.chance(sig ? 0.7 : 0.35)) {
+      if (dmg && target.alive && rng.chance((sig ? 0.7 : 0.35) + (quality === 'perfect' ? 0.25 : 0))) {
         target.st.stun = 1;
         ev.push({ t: 'status', uid: target.uid, text: 'STUNNED', color: 'grey' });
       }
@@ -284,7 +364,7 @@ function doAbility(b, a, id, target, sig, ev) {
     case 'royal_decree': {
       ev.push({ t: 'shout', uid: a.uid, text: 'BY ROYAL DECREE!' });
       foes.forEach((f) => {
-        f.st.decree = 2;
+        f.st.decree = quality === 'perfect' ? 3 : 2;
         if (f.faction === 'goblin') {
           f.st.stun = 1;
           ev.push({ t: 'status', uid: f.uid, text: 'BOWS', color: 'gold' });
@@ -309,10 +389,11 @@ function doAbility(b, a, id, target, sig, ev) {
     }
     case 'long_shot': {
       run.stats.longShots++;
-      const p = luck(sig ? 0.10 : 0.08, a);
+      const p = luck((sig ? 0.10 : 0.08) + (quality === 'perfect' ? 0.04 : 0), a);
       ev.push({ t: 'odds', uid: a.uid, pct: Math.round(p * 100) });
       if (rng.chance(p)) {
         ev.push({ t: 'shout', uid: a.uid, text: 'JACKPOT!' });
+        a.pm = 1; // the jackpot is big enough already
         basicStrike(b, a, target, 6, ev, { noMiss: true, crit: false, big: true });
         ev.push({ t: 'log', text: `${a.name} hit the long shot at ${Math.round(p * 100)}%!` });
       } else {
@@ -323,10 +404,10 @@ function doAbility(b, a, id, target, sig, ev) {
     }
     case 'mend':
       ev.push({ t: 'glow', uid: a.uid });
-      pals.forEach((p) => healUnit(p, p.maxHp * 0.3, ev));
+      pals.forEach((p) => healUnit(p, p.maxHp * 0.3 * (POWER[quality] ?? 1), ev));
       break;
     case 'backstab': {
-      const crit = rng.chance(luck(0.45, a));
+      const crit = rng.chance(luck(quality === 'perfect' ? 0.8 : 0.45, a));
       basicStrike(b, a, target, 1.0, ev, { crit });
       const g = rng.int(5, 15);
       run.gold += g;
@@ -338,12 +419,22 @@ function doAbility(b, a, id, target, sig, ev) {
 }
 
 // ---------- Enemy AI ----------
-export function enemyTurn(b) {
+// True if the current enemy is about to use its big special (UI shows a dodge prompt).
+export function bossSpecialNext(b) {
+  const a = current(b);
+  return !!a && a.key === 'boss_dungeon_landlord' && (a.turns + 1) % 3 === 0;
+}
+
+// opts.dodged: the players nailed the dodge prompt, specials do half damage.
+export function enemyTurn(b, opts = {}) {
   const a = current(b);
   const ev = [];
   a.turns++;
-  const targets = aliveOf(heroes(b));
-  if (!targets.length) return ev;
+  const targets = targetable(heroes(b));
+  if (!targets.length) {
+    ev.push({ t: 'say', uid: a.uid, text: 'Where did the blond one go?' });
+    return ev;
+  }
 
   const taunter = targets.find((t) => t.st.taunt);
   let target = taunter;
@@ -361,7 +452,8 @@ export function enemyTurn(b) {
   if (a.key === 'boss_dungeon_landlord' && a.turns % 3 === 0) {
     ev.push({ t: 'shout', uid: a.uid, text: 'RENT IS DUE!' });
     ev.push({ t: 'attack', uid: a.uid, target: target.uid, kind: 'magic' });
-    targets.forEach((h) => dealDamage(b, a, h, a.atk * 0.65, { magic: true, ev }));
+    if (opts.dodged) ev.push({ t: 'log', text: 'DODGED! The party ducks behind Haakon. Half damage.' });
+    targets.forEach((h) => dealDamage(b, a, h, a.atk * (opts.dodged ? 0.32 : 0.65), { magic: true, ev }));
     const stolen = Math.min(run.gold, 15);
     if (stolen) { run.gold -= stolen; ev.push({ t: 'gold', uid: a.uid, amount: -stolen }); }
     ev.push({ t: 'log', text: `The Landlord collects rent: damage to everyone${stolen ? ` and ${stolen} gold` : ''}.` });

@@ -14,6 +14,13 @@ gamble at the Goblin Casino and get probed by aliens.
   Goblin Market, Goblin Casino, campfire, treasure/mimics, and events
   (Boulder of Pride, Dani Needs to Talk, The Devil's Offer, Goblin Toll).
 
+## New in v0.2
+
+- Every battle button says what it does.
+- Battles are dumber now: joke intros, hero one-liners, enemy last words, and random fight rules (Greased Floor, Hype Man, Haakon's Mom Is Watching, Cursed Cheese, Nap Time).
+- Josh hides in a bush during dog fights until half the dogs are down.
+- Minigames: a power meter on every ability (hit the gold for a stronger move), a dodge prompt on the Landlord's rent attack, The Idiot's Trial (trivia room) and Whack-a-Goblin (Mike's cousins cost you gold).
+
 ## Racial hooks that are already in the game
 
 | Hero | In combat | Outside combat |

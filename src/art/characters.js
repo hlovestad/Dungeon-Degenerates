@@ -494,6 +494,39 @@ export function drawChest() {
   return p.finish();
 }
 
+export function drawSkullHost() {
+  const p = painter(30, 34);
+  const bone = '#e8e4d0', bd = '#b8b4a0';
+  p.ell(15, 10, 9, 9, bone); p.r(9, 15, 12, 5, bone); p.v(6, 6, 14, bd);
+  p.r(10, 8, 4, 4, '#140c1c'); p.r(17, 8, 4, 4, '#140c1c'); p.px(11, 9, '#f7e048'); p.px(18, 9, '#f7e048');
+  p.px(15, 13, '#140c1c'); p.px(16, 13, '#140c1c');
+  for (let x = 10; x < 21; x += 2) p.px(x, 18, '#140c1c');
+  // bow tie + sparkle mic
+  p.r(10, 22, 4, 4, '#d9473c'); p.r(17, 22, 4, 4, '#d9473c'); p.r(14, 23, 3, 2, '#a02a2a');
+  p.v(25, 14, 26, '#3a3a48'); p.ell(25, 12, 2, 2, '#8a8a9a');
+  p.px(3, 3, '#f7e048'); p.px(27, 4, '#f7e048'); p.px(2, 26, '#c58cff');
+  return p.finish();
+}
+
+export function drawMallet() {
+  const p = painter(20, 26);
+  p.r(8, 9, 3, 16, '#8a5a2a'); p.v(8, 9, 24, '#6a4018');
+  p.r(2, 1, 16, 9, '#c83a3a'); p.r(2, 1, 16, 2, '#e85a5a'); p.r(2, 8, 16, 2, '#902424');
+  p.r(1, 2, 1, 7, '#902424'); p.r(18, 2, 1, 7, '#902424');
+  return p.finish();
+}
+
+export function drawBush() {
+  const p = painter(44, 34);
+  const g = '#3a7a3a', gd = '#2a5a2a', gl = '#5a9a4a';
+  p.ell(12, 20, 11, 11, gd); p.ell(30, 19, 12, 12, gd); p.ell(21, 13, 13, 12, g);
+  p.ell(10, 22, 8, 8, g); p.ell(33, 22, 9, 9, g);
+  [[14, 8], [22, 6], [28, 10], [8, 16], [35, 15], [19, 15], [26, 18]].forEach(([x, y]) => { p.px(x, y, gl); p.px(x + 1, y, gl); });
+  p.px(17, 12, '#d9473c'); p.px(29, 15, '#d9473c'); p.px(11, 19, '#d9473c');
+  p.h(32, 2, 41, gd);
+  return p.finish();
+}
+
 export function drawBoulder() {
   const p = painter(40, 32);
   p.ell(20, 17, 18, 14, '#7a7088');

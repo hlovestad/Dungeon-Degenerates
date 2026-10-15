@@ -50,8 +50,11 @@ export function button(scene, x, y, w, h, label, onTap, opts = {}) {
   const t = text(scene, w / 2, h / 2, label, { size: opts.size || 10, ox: 0.5, oy: 0.5, color: opts.color || T.cream, align: 'center', wrap: w - 8 });
   let sub = null;
   if (opts.sub) {
-    t.setY(h / 2 - 6);
-    sub = text(scene, w / 2, h / 2 + 9, opts.sub, { size: 8, ox: 0.5, oy: 0.5, color: T.grey, align: 'center' });
+    // title near the top, description underneath (wraps to 2 lines on tall buttons)
+    t.setY(Math.min(h / 2 - 6, 15));
+    sub = text(scene, w / 2, h >= 52 ? h / 2 + 9 : h / 2 + 9, opts.sub, {
+      size: 8, ox: 0.5, oy: 0.5, color: opts.subColor || T.grey, align: 'center', wrap: w - 10, lineSpacing: 3, strokeThickness: 2,
+    });
   }
   cont.add([g, t]);
   if (sub) cont.add(sub);

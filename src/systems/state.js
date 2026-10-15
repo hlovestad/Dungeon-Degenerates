@@ -64,10 +64,10 @@ const ROWS = 8;
 
 function rowTypes(r) {
   if (r === 1) return ['fight', 'treasure', 'fight'];
-  if (r === 2) return ['fight', 'event', 'treasure', 'shop'];
-  if (r === 3) return ['alien', 'casino', 'event', 'fight'];
-  if (r === 4) return ['elite', 'shop', 'event', 'treasure', 'fight'];
-  if (r === 5) return ['alien', 'casino', 'fight', 'event'];
+  if (r === 2) return ['fight', 'trial', 'event', 'shop'];
+  if (r === 3) return ['alien', 'whack', 'casino', 'event'];
+  if (r === 4) return ['elite', 'shop', 'trial', 'treasure', 'fight'];
+  if (r === 5) return ['alien', 'whack', 'casino', 'fight'];
   if (r === 6) return ['rest', 'shop', 'rest'];
   return ['fight'];
 }

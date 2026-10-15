@@ -9,7 +9,7 @@ import { sfx, toggleMute, isMuted, unlockAudio } from '../audio/sfx.js';
 
 const NODE_LABEL = {
   start: 'Entrance', fight: 'Fight', elite: 'Elite Fight', boss: 'BOSS', shop: 'Goblin Market',
-  casino: 'Goblin Casino', event: 'Weird Stuff', treasure: 'Treasure', rest: 'Campfire', alien: 'Aliens',
+  casino: 'Goblin Casino', event: 'Weird Stuff', trial: "Idiot's Trial", whack: 'Whack-a-Goblin', treasure: 'Treasure', rest: 'Campfire', alien: 'Aliens',
 };
 
 export class MapScene extends Phaser.Scene {
@@ -142,6 +142,8 @@ export class MapScene extends Phaser.Scene {
         break;
       case 'shop': go('Shop'); break;
       case 'casino': go('Casino'); break;
+      case 'trial': go('Trivia', { mode: 'crawl' }); break;
+      case 'whack': go('Whack', { mode: 'crawl' }); break;
       case 'rest': go('Event', { id: 'rest' }); break;
       case 'event': go('Event', { id: pickEvent() }); break;
       default: go('Map');

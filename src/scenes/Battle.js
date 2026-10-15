@@ -1,4 +1,7 @@
-import { T, C, SPRITE_HEIGHT, HERO_SLOTS, ENEMY_SLOTS, BOSS_SLOT } from '../config.js';
+import { T, C, SPRITE_HEIGHT, HERO_SLOTS, ENEMY_SLOTS, BOSS_SLOT, BUSH_SPOT } from '../config.js';
+import { INTROS, MISS_WORDS, CRIT_WORDS } from '../data/banter.js';
+import { powerMeter, dodgePrompt } from '../ui/quicktime.js';
+import { fitHeight } from '../art/assets.js';
 import { ENEMIES } from '../data/enemies.js';
 import { CLASSES } from '../data/classes.js';
 import { RACES } from '../data/races.js';
@@ -72,7 +75,7 @@ export class BattleScene extends Phaser.Scene {
     const top = v.a.y - v.a.h - v.a.float - 8;
     v.bar.setPosition(v.a.x, top);
     v.st.setPosition(v.a.x, top - 12);
-    v.bar.setVisible(v.u.alive);
+    v.bar.setVisible(v.u.alive && !v.u.st.bush);
   }
 
   head(uid) {
@@ -99,7 +102,8 @@ export class BattleScene extends Phaser.Scene {
     const names = {};
     foes.forEach((v) => { names[v.u.name] = (names[v.u.name] || 0) + 1; });
     const desc = Object.entries(names).map(([n, c]) => (c > 1 ? `${c} ${n}s` : `a ${n}`)).join(', ');
-    this.setLog(this.data_.intro || (this.b.type === 'boss' ? 'The Dungeon Landlord demands rent.' : `You run into ${desc}!`));
+    const joke = INTROS[this.b.units.find((u) => u.side === 'enemy').key];
+    this.setLog(this.data_.intro || (this.b.type === 'boss' ? 'The Dungeon Landlord demands rent.' : joke ? rng.pick(joke) : `You run into ${desc}!`));
 
     if (this.b.type === 'boss') {
       this.cameras.main.shake(300, 0.006);
@@ -130,10 +134,18 @@ export class BattleScene extends Phaser.Scene {
           if (u.side === 'hero') {
             const action = await this.chooseAction(u);
             this.arrow.setVisible(false);
+            if (action.type === 'ability') action.quality = await powerMeter(this, `${CLASSES[u.cls].ability.name.toUpperCase()}: TAP THE GOLD!`);
             await this.play(K.heroAction(b, u.uid, action));
           } else {
             await this.wait(380);
-            await this.play(K.enemyTurn(b));
+            let dodged = false;
+            if (K.bossSpecialNext(b)) {
+              const h = this.head(u.uid);
+              bubble(this, h.x, h.y - 4, 'Rent... is... DUE...', 1500, '#8a1c2b');
+              await this.wait(500);
+              dodged = await dodgePrompt(this, 'THE LANDLORD WINDS UP...');
+            }
+            await this.play(K.enemyTurn(b, { dodged }));
           }
         }
       }
@@ -168,7 +180,8 @@ export class BattleScene extends Phaser.Scene {
       v.st.setText(v.u.alive ? tags.join(' ') : '');
       v.st.setColor(s.weak ? T.blue : T.cream);
       v.bar.draw(v.u.hp, v.u.maxHp);
-      v.bar.setVisible(v.u.alive);
+      v.bar.setVisible(v.u.alive && !s.bush);
+      if (s.bush) v.st.setText('');
     });
   }
 
@@ -188,26 +201,33 @@ export class BattleScene extends Phaser.Scene {
     this.clearBar();
     const race = RACES[u.race];
     const cls = CLASSES[u.cls];
-    const g = panel(this, 4, 300, 632, 56, { alpha: 0.94 });
+    const g = panel(this, 4, 284, 632, 72, { alpha: 0.94 });
     this.bar.add(g);
-    this.bar.add(text(this, 14, 310, u.name.toUpperCase(), { size: 10, color: race.color }));
-    this.bar.add(text(this, 14, 326, `${cls.short}${u.signature ? '*' : ''}`, { size: 8, color: u.signature ? T.gold : T.grey }));
-    this.bar.add(text(this, 14, 340, `HP ${u.hp}/${u.maxHp}`, { size: 8, color: T.green }));
+    this.bar.add(text(this, 14, 294, u.name.toUpperCase(), { size: 10, color: race.color }));
+    this.bar.add(text(this, 14, 312, `${cls.short}${u.signature ? '*' : ''}`, { size: 8, color: u.signature ? T.gold : T.grey }));
+    this.bar.add(text(this, 14, 330, `HP ${u.hp}/${u.maxHp}`, { size: 8, color: T.green }));
     this.setLog(`${u.name}'s turn. What's the move?`);
 
-    const bx = [140, 264, 388, 512], bw = 118, by = 306, bh = 44;
-    const atk = button(this, bx[0], by, bw, bh, 'ATTACK', () => this.beginTarget(u, { type: 'attack' }, 'enemy'), { size: 10, fill: 0x6a2a3a });
+    // Every move says what it does.
+    const bx = [140, 264, 388, 512], bw = 118, by = 290, bh = 60;
+    const isHaakon = u.race === 'haakon';
+    const atkDesc = u.st.probed ? 'Hit one enemy. Aim is shot.' : isHaakon ? 'Hit one enemy. HARD.' : 'Hit one enemy.';
+    const atk = button(this, bx[0], by, bw, bh, 'ATTACK', () => this.beginTarget(u, { type: 'attack' }, 'enemy'), { size: 10, fill: 0x6a2a3a, sub: atkDesc });
     const ready = u.cd === 0;
+    let abDesc = cls.ability.short;
+    if (cls.ability.id === 'long_shot') {
+      const pct = Math.round(K.luck(u.signature ? 0.10 : 0.08, u) * 100);
+      abDesc = `${pct}% odds. 6x damage.`;
+    }
     const abil = button(this, bx[1], by, bw, bh, cls.ability.name.toUpperCase(), () => {
       if (cls.ability.target === 'enemy') this.beginTarget(u, { type: 'ability' }, 'enemy');
       else this.resolveAction({ type: 'ability' });
-    }, { size: 8, fill: 0x2a3a6a, sub: ready ? (u.signature ? 'SIGNATURE' : 'READY') : `WAIT ${u.cd}` });
+    }, { size: 8, fill: 0x2a3a6a, sub: ready ? abDesc : `Recharging. Ready in ${u.cd}.`, subColor: ready && u.signature ? T.gold : T.grey });
     abil.setEnabled(ready);
-    const isHaakon = u.race === 'haakon';
     const def = button(this, bx[2], by, bw, bh, isHaakon ? 'FLEX' : 'DEFEND', () => this.resolveAction({ type: isHaakon ? 'flex' : 'defend' }), {
-      size: 10, sub: isHaakon ? 'all enemies target you' : 'half damage',
+      size: 10, sub: isHaakon ? 'Every enemy hits YOU.' : 'Take half damage.',
     });
-    const pot = button(this, bx[3], by, bw, bh, `POTION x${run.potions}`, () => this.beginTarget(u, { type: 'potion' }, 'hero'), { size: 8, sub: '+15 HP' });
+    const pot = button(this, bx[3], by, bw, bh, `POTION x${run.potions}`, () => this.beginTarget(u, { type: 'potion' }, 'hero'), { size: 8, sub: 'Heal a friend 15 HP.' });
     pot.setEnabled(run.potions > 0);
     this.bar.add([atk, abil, def, pot]);
   }
@@ -220,10 +240,10 @@ export class BattleScene extends Phaser.Scene {
     }
     this.targeting = { action, side };
     this.clearBar();
-    const g = panel(this, 4, 300, 632, 56, { alpha: 0.94 });
+    const g = panel(this, 4, 284, 632, 72, { alpha: 0.94 });
     this.bar.add(g);
-    this.bar.add(text(this, 20, 328, side === 'enemy' ? 'TAP AN ENEMY' : 'TAP A HERO TO HEAL', { size: 12, color: T.gold, oy: 0.5 }));
-    this.bar.add(button(this, 512, 306, 118, 44, 'BACK', () => {
+    this.bar.add(text(this, 20, 320, side === 'enemy' ? 'TAP AN ENEMY' : 'TAP A HERO TO HEAL', { size: 12, color: T.gold, oy: 0.5 }));
+    this.bar.add(button(this, 512, 290, 118, 60, 'BACK', () => {
       this.targeting = null;
       this.highlightTargets(null);
       this.showActionBar(u);
@@ -285,7 +305,7 @@ export class BattleScene extends Phaser.Scene {
       }
       case 'ability': {
         const h = this.head(ev.uid);
-        floater(this, h.x, h.y - 6, ev.name, T.blue, 10);
+        floater(this, h.x, h.y - 6, ev.name + (ev.quality === 'perfect' ? '!!' : ''), ev.quality === 'perfect' ? T.gold : T.blue, 10);
         v.a.setPose('cast');
         this.time.delayedCall(500, () => v.a.setPose('idle'));
         return this.wait(320);
@@ -337,6 +357,8 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
       case 'glow': this.sparkle(v.a.x, v.a.y - v.a.h / 2, 0xf7e048); return this.wait(150);
+      case 'modifier': return this.animModifier(ev);
+      case 'bush': return this.animBush(ev);
     }
   }
 
@@ -368,7 +390,7 @@ export class BattleScene extends Phaser.Scene {
     const v = this.views[ev.uid];
     const h = this.head(ev.uid);
     if (ev.miss) {
-      floater(this, h.x, h.y, 'MISS', T.grey, 10);
+      floater(this, h.x, h.y, rng.pick(MISS_WORDS), T.grey, 10);
       sfx('miss');
       await this.tween({ targets: v.a, x: v.a.x + (v.u.side === 'hero' ? -10 : 10), duration: 90, yoyo: true });
       return;
@@ -378,7 +400,7 @@ export class BattleScene extends Phaser.Scene {
     v.a.setPose('hurt');
     this.time.delayedCall(350, () => v.u.alive && v.a.setPose('idle'));
     if (ev.crit) {
-      floater(this, h.x, h.y - 14, 'CRIT!', T.gold, 10);
+      floater(this, h.x, h.y - 14, rng.pick(CRIT_WORDS), T.gold, 10);
       floater(this, h.x, h.y, '-' + ev.amount, T.gold, 16, true);
       this.cameras.main.shake(180, 0.008);
       sfx('crit');
@@ -542,6 +564,55 @@ export class BattleScene extends Phaser.Scene {
     await this.tween({ targets: d, x: this.daniHome.x, y: this.daniHome.y, duration: 300 });
     d.setDepth(this.daniHome.y - 1);
     d.setPose('idle');
+  }
+
+  // A silly rule for this fight, announced like a game show.
+  async animModifier(ev) {
+    const D = 850;
+    const g = this.add.graphics().setDepth(D);
+    g.fillStyle(C.ink, 0.85); g.fillRect(0, 120, 640, 70);
+    g.fillStyle(C.gold, 1); g.fillRect(0, 120, 640, 3); g.fillRect(0, 187, 640, 3);
+    const t1 = text(this, 320, 140, ev.name, { size: 16, ox: 0.5, color: T.gold, depth: D + 1, strokeThickness: 5 });
+    const t2 = text(this, 320, 166, ev.desc, { size: 8, ox: 0.5, color: T.cream, depth: D + 1 });
+    t1.setScale(0.3);
+    this.tweens.add({ targets: t1, scale: 1, duration: 260, ease: 'Back.Out' });
+    sfx('jackpot');
+    this.modTag = this.modTag || text(this, 320, 44, '', { size: 8, ox: 0.5, color: T.gold, depth: 91 });
+    this.modTag.setText(ev.name);
+    await this.wait(2000);
+    await this.tween({ targets: [g, t1, t2], alpha: 0, duration: 250 });
+    [g, t1, t2].forEach((o) => o.destroy());
+  }
+
+  // Josh dives into (or crawls out of) a bush during dog fights.
+  async animBush(ev) {
+    const v = this.views[ev.uid];
+    const a = v.a;
+    if (ev.action === 'in') {
+      this.bush = this.add.image(BUSH_SPOT.x, BUSH_SPOT.y + 8, 'prop_bush').setOrigin(0.5, 1);
+      fitHeight(this.bush, 54);
+      this.bush.setDepth(BUSH_SPOT.y + 20);
+      this.joshHome = { x: a.x, y: a.y };
+      v.bar.setVisible(false);
+      sfx('step');
+      await this.tween({ targets: a, x: BUSH_SPOT.x, y: BUSH_SPOT.y, duration: 380, ease: 'Quad.In' });
+      a.setDepth(BUSH_SPOT.y);
+      this.tweens.add({ targets: this.bush, angle: 4, duration: 70, yoyo: true, repeat: 3 });
+      this.moveZone(v);
+      return this.wait(150);
+    }
+    this.tweens.add({ targets: this.bush, angle: -5, duration: 70, yoyo: true, repeat: 3 });
+    await this.tween({ targets: a, x: this.joshHome.x, y: this.joshHome.y, duration: 420, ease: 'Quad.Out' });
+    a.setDepth(this.joshHome.y);
+    this.moveZone(v);
+    this.placeBar(v);
+    return this.wait(100);
+  }
+
+  moveZone(v) {
+    v.zone.setPosition(v.a.x, v.a.y - v.a.h / 2);
+    this.placeBar(v);
+    if (v.u.st.bush) v.bar.setVisible(false);
   }
 
   // ------------------------------------------------------------ end of fight

@@ -32,6 +32,9 @@ const PLACEHOLDERS = {
   prop_campfire: () => Art.drawCampfire(),
   prop_chest: () => Art.drawChest(),
   prop_boulder: () => Art.drawBoulder(),
+  prop_bush: () => Art.drawBush(),
+  prop_mallet: () => Art.drawMallet(),
+  npc_trivia_skull_idle: () => Art.drawSkullHost(),
   prop_slots: () => Art.drawSlotMachine(),
   map_background: () => drawMapBackground(),
 };

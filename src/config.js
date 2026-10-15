@@ -1,5 +1,5 @@
 // Global constants shared by every scene.
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 
 // Internal resolution. Everything is drawn at this size and scaled up to the
 // screen with nearest-neighbour filtering, so pixel art stays crisp.
@@ -51,15 +51,17 @@ export const SPRITE_HEIGHT = {
 // Where units stand in a battle scene (feet positions). Heroes on the left
 // facing right, enemies on the right facing left, like For The King.
 export const HERO_SLOTS = [
-  { x: 232, y: 270 },
-  { x: 168, y: 240 },
-  { x: 140, y: 292 },
-  { x: 84, y: 256 },
+  { x: 232, y: 254 },
+  { x: 168, y: 226 },
+  { x: 140, y: 274 },
+  { x: 84, y: 240 },
 ];
 export const ENEMY_SLOTS = [
-  { x: 446, y: 268 },
-  { x: 506, y: 244 },
-  { x: 540, y: 290 },
-  { x: 590, y: 258 },
+  { x: 446, y: 252 },
+  { x: 506, y: 228 },
+  { x: 540, y: 272 },
+  { x: 590, y: 242 },
 ];
-export const BOSS_SLOT = { x: 520, y: 284 };
+export const BOSS_SLOT = { x: 520, y: 268 };
+// Where Josh hides during dog fights.
+export const BUSH_SPOT = { x: 330, y: 206 };
