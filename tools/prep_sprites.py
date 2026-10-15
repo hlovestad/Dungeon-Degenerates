@@ -49,6 +49,31 @@ HEROES = {'haakon', 'mike', 'griffin', 'josh', 'dani'}
 SOURCE_FACES_RIGHT = set()
 
 
+# Single images with no pose (props, icons, map nodes). They're drawn at their
+# native size, so each is fitted into the same box as its placeholder (game
+# pixels). Never mirrored. Props sit on the bottom edge; icons are centered.
+SINGLE_BOX = {
+    'prop_campfire': (30, 24), 'prop_chest': (28, 22), 'prop_boulder': (42, 34),
+    'prop_bush': (46, 36), 'prop_mallet': (22, 28), 'prop_slots': (30, 38),
+}
+ICON_BOX = (18, 18)
+
+
+def rel(path):
+    try:
+        return str(path.resolve().relative_to(ROOT)).replace('\\', '/')
+    except ValueError:
+        return str(path).replace('\\', '/')
+
+
+def single_box(key):
+    if key in SINGLE_BOX:
+        return SINGLE_BOX[key]
+    if key.startswith(('icon_', 'node_')):
+        return ICON_BOX
+    return None
+
+
 def faces_left_in_source(base):
     return base not in HEROES and base not in SOURCE_FACES_RIGHT
 PORTRAIT = 64
@@ -208,7 +233,7 @@ def process(raw_dir, out_dir, bg_dir, manifest_path):
                 out = anchor_feet(hard_alpha(downscale(im, factor)))
             dest = out_dir / f'{key}.png'
             out.save(dest, optimize=True)
-            images[key] = str(dest.relative_to(ROOT)).replace('\\', '/')
+            images[key] = rel(dest)
             report.append(f'{key:28s} {out.size[0]:4d}x{out.size[1]:<4d} scale {factor if pose != "portrait" else PORTRAIT / max(im.size):.4f}')
 
     for key, f in backgrounds:
@@ -216,17 +241,36 @@ def process(raw_dir, out_dir, bg_dir, manifest_path):
         out = im.resize(BG_SIZE, Image.Resampling.BOX)
         dest = bg_dir / f'{key}.png'
         out.save(dest, optimize=True)
-        images[key] = str(dest.relative_to(ROOT)).replace('\\', '/')
+        images[key] = rel(dest)
         report.append(f'{key:28s} {out.size[0]:4d}x{out.size[1]:<4d} background')
 
     for key, f in others:
-        report.append(f'SKIP {f.name}: no pose suffix (expected name_idle, name_attack, ...)')
+        box = single_box(key)
+        if not box:
+            report.append(f'SKIP {f.name}: no pose suffix (expected name_idle, name_attack, ...)')
+            continue
+        im = despeckle(key_out(Image.open(f)))
+        bbox = im.getbbox()
+        if not bbox:
+            report.append(f'SKIP {f.name}: empty after keying')
+            continue
+        im = im.crop(bbox)
+        s = min(box[0] / im.size[0], box[1] / im.size[1])
+        im = hard_alpha(downscale(im, s))
+        out = Image.new('RGBA', box, (0, 0, 0, 0))
+        ox = (box[0] - im.size[0]) // 2
+        oy = box[1] - im.size[1] if key.startswith('prop_') else (box[1] - im.size[1]) // 2
+        out.paste(im, (ox, oy))
+        dest = out_dir / f'{key}.png'
+        out.save(dest, optimize=True)
+        images[key] = rel(dest)
+        report.append(f'{key:28s} {out.size[0]:4d}x{out.size[1]:<4d} fitted (no flip)')
 
     manifest['images'] = dict(sorted(images.items()))
     manifest['artBase'] = {'width': BG_SIZE[0], 'height': BG_SIZE[1]}
     manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
     print('\n'.join(report))
-    print(f'\n{len(images)} images registered in {manifest_path.relative_to(ROOT)}')
+    print(f'\n{len(images)} images registered in {rel(manifest_path)}')
 
 
 def main():

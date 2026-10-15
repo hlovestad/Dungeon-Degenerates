@@ -9,6 +9,8 @@
    - scales every pose of a character by ONE factor taken from its idle (box downsampling). Idle heights on the 480x270 art stage: Haakon 104, Mike 92, Griffin 96, Josh 96, Dani 85% of Griffin, goblin_grunt 72
    - anchors every sprite on its feet (padded so the feet are bottom-center), so poses swap without jumping
    - backgrounds -> 480x270, portraits -> 64x64 (UI only, never in battle)
+   - props, icons and map nodes (no pose suffix) are fitted to their placeholder size (icons 18x18) and never mirrored
+   - everything except the party is mirrored once, so all processed sprites face right
    - registers everything in `assets/manifest.json`
 3. The game draws real art at native size x `ART_SCALE` (640/480) and keeps placeholders for anything missing.
 4. Check it: open the game with `?test=battle` (party vs two goblin grunts in the crypt) and tap POSES to cycle every pose.
