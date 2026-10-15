@@ -37,7 +37,7 @@ Tags: [1P] works great on one phone, [PASS] pass-and-play with secrets, [MP] rea
 - **Wheel of Misfortune** [1P]: Mario Party "Chance Time". Spin for two random friends and a random effect: swap gold, swap crowns, give 30g, steal a card.
 - **Split or Steal** [PASS]: two friends secretly pick SPLIT or STEAL on a pot. Both split = share. One steals = takes all. Both steal = the goblins keep it.
 - **Most Likely To** [PASS]: a prompt ("Most likely to cry at a wedding"), everyone votes. Whoever gets the most votes pays everyone 5g. Write inside-joke prompts.
-- **Bounty Board**: put gold on a friend's head; whoever lands the killing blow in the next fight... on an enemy while that friend is downed collects it.
+- **Bounty Board** [1P]: bet gold that a friend gets knocked out in the next fight. If they go down, you collect double.
 
 ### Card and dice games
 - **Goblin Eights** [MP/PASS]: Uno-style shedding game with our own cards: +2/+4 TAX cards, SKIP, REVERSE, color swap. First out takes the pot. Also the headline game for the arcade.
