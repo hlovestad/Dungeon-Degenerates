@@ -1,5 +1,5 @@
 // Global constants shared by every scene.
-export const VERSION = '0.3.1';
+export const VERSION = '0.3.2';
 
 // Internal resolution. Everything is drawn at this size and scaled up to the
 // screen with nearest-neighbour filtering, so pixel art stays crisp.
@@ -57,17 +57,19 @@ export const ART_SCALE = W / ART_BASE.width;
 // Dani hovers this many art pixels above the ground.
 export const DANI_HOVER = 12;
 
+// Two rows: front (lower on screen, drawn on top) and back (higher, so heads
+// show over the front row). Real art is wide, so slots are spaced generously.
 export const HERO_SLOTS = [
-  { x: 296, y: 274 },
-  { x: 212, y: 242 },
-  { x: 178, y: 282 },
-  { x: 118, y: 248 },
+  { x: 290, y: 276 },
+  { x: 222, y: 222 },
+  { x: 150, y: 278 },
+  { x: 100, y: 226 },
 ];
 export const ENEMY_SLOTS = [
-  { x: 446, y: 252 },
-  { x: 506, y: 228 },
-  { x: 540, y: 272 },
-  { x: 590, y: 242 },
+  { x: 452, y: 274 },
+  { x: 566, y: 232 },
+  { x: 584, y: 282 },
+  { x: 470, y: 218 },
 ];
 export const BOSS_SLOT = { x: 520, y: 268 };
 // Where Josh hides during dog fights.

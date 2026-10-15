@@ -1,4 +1,45 @@
 {
   "_readme": "Real art goes here. Key = texture name used by the game (e.g. haakon_idle, bg_dungeon_crypt), value = path. Anything not listed uses generated placeholder art. tools/process_art.py fills this in automatically.",
-  "images": {}
+  "images": {
+    "bg_dungeon_crypt": "assets/bg/bg_dungeon_crypt.png",
+    "dani_attack": "assets/sprites/dani_attack.png",
+    "dani_happy": "assets/sprites/dani_happy.png",
+    "dani_heal": "assets/sprites/dani_heal.png",
+    "dani_idle": "assets/sprites/dani_idle.png",
+    "dani_portrait": "assets/sprites/dani_portrait.png",
+    "dani_scold": "assets/sprites/dani_scold.png",
+    "goblin_grunt_idle": "assets/sprites/goblin_grunt_idle.png",
+    "griffin_attack": "assets/sprites/griffin_attack.png",
+    "griffin_cast": "assets/sprites/griffin_cast.png",
+    "griffin_downed": "assets/sprites/griffin_downed.png",
+    "griffin_hurt": "assets/sprites/griffin_hurt.png",
+    "griffin_idle": "assets/sprites/griffin_idle.png",
+    "griffin_portrait": "assets/sprites/griffin_portrait.png",
+    "griffin_victory": "assets/sprites/griffin_victory.png",
+    "haakon_attack": "assets/sprites/haakon_attack.png",
+    "haakon_cast": "assets/sprites/haakon_cast.png",
+    "haakon_downed": "assets/sprites/haakon_downed.png",
+    "haakon_hurt": "assets/sprites/haakon_hurt.png",
+    "haakon_idle": "assets/sprites/haakon_idle.png",
+    "haakon_portrait": "assets/sprites/haakon_portrait.png",
+    "haakon_victory": "assets/sprites/haakon_victory.png",
+    "josh_attack": "assets/sprites/josh_attack.png",
+    "josh_cast": "assets/sprites/josh_cast.png",
+    "josh_downed": "assets/sprites/josh_downed.png",
+    "josh_hurt": "assets/sprites/josh_hurt.png",
+    "josh_idle": "assets/sprites/josh_idle.png",
+    "josh_portrait": "assets/sprites/josh_portrait.png",
+    "josh_victory": "assets/sprites/josh_victory.png",
+    "mike_attack": "assets/sprites/mike_attack.png",
+    "mike_cast": "assets/sprites/mike_cast.png",
+    "mike_downed": "assets/sprites/mike_downed.png",
+    "mike_hurt": "assets/sprites/mike_hurt.png",
+    "mike_idle": "assets/sprites/mike_idle.png",
+    "mike_portrait": "assets/sprites/mike_portrait.png",
+    "mike_victory": "assets/sprites/mike_victory.png"
+  },
+  "artBase": {
+    "width": 480,
+    "height": 270
+  }
 }
