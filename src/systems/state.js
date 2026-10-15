@@ -117,9 +117,9 @@ const ROWS = 8;
 function rowTypes(r) {
   if (r === 1) return ['fight', 'treasure', 'fight'];
   if (r === 2) return ['casino', 'fight', 'trial', 'event'];
-  if (r === 3) return ['alien', 'whack', 'shop', 'event'];
+  if (r === 3) return ['wheel', 'alien', 'whack', 'shop', 'event'];
   if (r === 4) return ['casino', 'elite', 'trial', 'treasure'];
-  if (r === 5) return ['alien', 'whack', 'event', 'fight'];
+  if (r === 5) return ['wheel', 'alien', 'whack', 'event', 'fight'];
   if (r === 6) return ['casino', 'rest', 'shop'];
   return ['fight'];
 }

@@ -17,6 +17,9 @@ export const SHOWDOWNS = {
   highcard: { name: 'HIGH CARD', rules: 'Everyone antes 10 gold. Tap your corner to flip.\nHighest card takes the whole pot.', kind: 'corners' },
   chests: { name: 'PICK A CHEST', rules: 'Pass the phone. Poorest picks first.\nGold, a heist, or a bomb. Pure luck.', kind: 'turns' },
   potato: { name: 'HOT POTATO', rules: 'Pass the phone. HOLD the bomb for +10 gold, or BANK and get out.\nEvery hold makes it more likely to blow up.', kind: 'turns' },
+  split: { name: 'SPLIT OR STEAL', rules: 'Two friends, one pot. Each secretly picks SPLIT or STEAL.\nBoth split: share it. One steals: they take it all.\nBoth steal: the goblins keep it. Everyone else bets.', kind: 'turns' },
+  derby: { name: 'GOBLIN DERBY', rules: 'Pass the phone and bet on a racer.\nLong shots pay big. The slime is not a goblin. Nobody cares.', kind: 'turns' },
+  clock: { name: 'STOP THE CLOCK', rules: 'Tap your corner at EXACTLY 5.00 seconds.\nThe clock disappears after 1.5 seconds. Good luck.', kind: 'corners' },
 };
 const IDS = Object.keys(SHOWDOWNS);
 
@@ -387,6 +390,256 @@ export class ShowdownScene extends Phaser.Scene {
       res = this.players.map((s) => ({ seat: s, gold: this.pay(s, pending[s]), raw: true, note: 'banked' }));
     }
     this.finish(res.sort((a, b) => b.gold - a.gold));
+  }
+
+  // ---------------------------------------------------------------- STOP THE CLOCK
+  async clock() {
+    this.corners('TAP AT\n5.00');
+    const times = {};
+    let t0 = 0;
+    let live = false;
+    const clockT = text(this, 320, 180, '0.00', { size: 24, ox: 0.5, oy: 0.5, color: T.gold, strokeThickness: 6, depth: 200 });
+    this.layer.add(clockT);
+    this.onCorner = (seat) => {
+      if (!live || times[seat] !== undefined) return;
+      times[seat] = (this.time.now - t0) / 1000;
+      this.cornerViews[seat].big.setText('LOCKED').setColor(T.cream);
+      sfx('select');
+    };
+    for (const n of ['3', '2', '1']) { clockT.setText(n); sfx('select'); await this.wait(600); }
+    sfx('crit');
+    t0 = this.time.now;
+    live = true;
+    const tick = this.time.addEvent({ delay: 30, loop: true, callback: () => {
+      const e = (this.time.now - t0) / 1000;
+      clockT.setText(e < 1.5 ? e.toFixed(2) : '?.??');
+      if (Object.keys(times).length === this.players.length || e > 9) tick.remove();
+    } });
+    while (Object.keys(times).length < this.players.length && (this.time.now - t0) < 9000) await this.wait(100);
+    live = false;
+    this.onCorner = null;
+    tick.remove();
+    clockT.setText('5.00');
+    this.players.forEach((s) => {
+      const v = this.cornerViews[s];
+      const t = times[s];
+      v.big.setText(t === undefined ? 'NEVER\nTAPPED' : t.toFixed(2)).setColor(t !== undefined && Math.abs(t - 5) < 0.15 ? T.gold : T.white);
+    });
+    sfx('dice');
+    await this.wait(1600);
+    const off = (s) => (times[s] === undefined ? 99 : Math.abs(times[s] - 5));
+    const ranked = this.players.slice().sort((a, b) => off(a) - off(b));
+    const pays = [25, 10];
+    this.finish(ranked.map((s, k) => ({
+      seat: s, gold: off(s) < 99 ? (pays[k] || 0) : 0,
+      note: times[s] === undefined ? 'fell asleep' : `${times[s].toFixed(2)}s (off by ${off(s).toFixed(2)})`,
+    })));
+  }
+
+  // Full-screen "pass the phone" curtain so secret picks stay secret.
+  passTo(seat, msg = 'Everyone else, look away.') {
+    return new Promise((resolve) => {
+      const c = this.add.container(0, 0).setDepth(800);
+      c.add(this.add.rectangle(320, 180, 640, 360, C.ink, 1).setInteractive());
+      c.add(text(this, 320, 110, `PASS THE PHONE TO`, { size: 12, ox: 0.5, color: T.grey }));
+      c.add(text(this, 320, 140, this.name(seat).toUpperCase(), { size: 24, ox: 0.5, color: this.color(seat), strokeThickness: 6 }));
+      c.add(text(this, 320, 180, msg, { size: 8, ox: 0.5, color: T.grey }));
+      c.add(button(this, 220, 220, 200, 44, `I'M ${this.name(seat).toUpperCase()}`, () => { c.destroy(); resolve(); }, { size: 10, fill: 0x2a5a3a }));
+    });
+  }
+
+  // ---------------------------------------------------------------- SPLIT OR STEAL
+  async split() {
+    const pair = rng.shuffle(this.players).slice(0, 2);
+    const [a, b] = pair;
+    const others = this.players.filter((s) => !pair.includes(s));
+    let pot = 40;
+    pair.forEach((s) => { const n = Math.min(10, run.party[s].gold); run.party[s].gold -= n; pot += n; });
+    const banner = text(this, 320, 40, `${this.name(a).toUpperCase()} vs ${this.name(b).toUpperCase()}`, { size: 16, ox: 0.5, color: T.gold, depth: 200 });
+    const potT = text(this, 320, 70, `POT: ${pot}g`, { size: 12, ox: 0.5, color: T.cream, depth: 200 });
+    this.layer.add([banner, potT]);
+    [a, b].forEach((s, k) => {
+      const img = this.add.image(200 + k * 240, 230, poseKey(this, run.party[s].race, 'idle')).setOrigin(0.5, 1);
+      fitHeight(img, 90);
+      img.setFlipX(k === 1);
+      this.layer.add(img);
+    });
+    await this.wait(1200);
+
+    // spectators bet on betrayal
+    const bets = {};
+    for (const s of others) {
+      await this.passTo(s, 'Side bet: will anyone STEAL?');
+      bets[s] = await new Promise((resolve) => {
+        const c = this.add.container(0, 0).setDepth(800);
+        c.add(this.add.rectangle(320, 180, 640, 360, C.ink, 0.92).setInteractive());
+        c.add(text(this, 320, 100, `${this.name(s).toUpperCase()}: WILL ANYONE STEAL?`, { size: 12, ox: 0.5, color: this.color(s) }));
+        c.add(text(this, 320, 124, 'Right guess pays 15g.', { size: 8, ox: 0.5, color: T.grey }));
+        c.add(button(this, 150, 160, 160, 60, 'YES', () => { c.destroy(); resolve(true); }, { size: 16, fill: 0x6a2a3a, sub: 'they are snakes' }));
+        c.add(button(this, 330, 160, 160, 60, 'NO', () => { c.destroy(); resolve(false); }, { size: 16, fill: 0x2a5a3a, sub: 'trust the bros' }));
+      });
+    }
+
+    // secret picks
+    const pick = {};
+    for (const s of pair) {
+      await this.passTo(s);
+      pick[s] = await new Promise((resolve) => {
+        const c = this.add.container(0, 0).setDepth(800);
+        c.add(this.add.rectangle(320, 180, 640, 360, C.ink, 1).setInteractive());
+        c.add(text(this, 320, 80, `${this.name(s).toUpperCase()}, ${pot}g IS ON THE TABLE`, { size: 12, ox: 0.5, color: this.color(s) }));
+        c.add(button(this, 120, 130, 190, 90, 'SPLIT', () => { c.destroy(); resolve('split'); }, { size: 16, fill: 0x2a5a3a, sub: 'be a good friend' }));
+        c.add(button(this, 330, 130, 190, 90, 'STEAL', () => { c.destroy(); resolve('steal'); }, { size: 16, fill: 0x8a1c2b, sub: 'be yourself' }));
+      });
+      sfx('select');
+    }
+    await this.passTo(a, 'Everyone look. Reveal time.');
+
+    // reveal
+    for (const [k, s] of [a, b].entries()) {
+      this.centerText('...', 16, T.grey);
+      sfx('dice');
+      await this.wait(900);
+      const lbl = text(this, 200 + k * 240, 120, pick[s].toUpperCase(), { size: 24, ox: 0.5, color: pick[s] === 'steal' ? T.red : T.green, strokeThickness: 6, depth: 300 });
+      lbl.setScale(0.3);
+      this.tweens.add({ targets: lbl, scale: 1, duration: 260, ease: 'Back.Out' });
+      this.layer.add(lbl);
+      sfx(pick[s] === 'steal' ? 'whip' : 'heal');
+      this.center?.destroy();
+      await this.wait(900);
+    }
+    const steals = pair.filter((s) => pick[s] === 'steal');
+    const res = [];
+    if (steals.length === 0) {
+      this.centerText('THEY SPLIT IT!', 16, T.green);
+      pair.forEach((s) => res.push({ seat: s, gold: this.pay(s, Math.floor(pot / 2)), raw: true, note: 'split' }));
+    } else if (steals.length === 1) {
+      const thief = steals[0], victim = pair.find((s) => s !== thief);
+      this.centerText(`${this.name(thief).toUpperCase()} BETRAYED ${this.name(victim).toUpperCase()}`, 12, T.red);
+      this.cameras.main.shake(300, 0.01);
+      res.push({ seat: thief, gold: this.pay(thief, pot), raw: true, note: 'STOLE IT ALL' });
+      res.push({ seat: victim, gold: -10, raw: true, note: 'got played' });
+      run.party[thief].st.stolen += Math.floor(pot / 2);
+      run.party[victim].st.robbed += Math.floor(pot / 2);
+    } else {
+      this.centerText('BOTH STOLE. THE GOBLINS KEEP IT.', 12, T.red);
+      sfx('lose');
+      pair.forEach((s) => res.push({ seat: s, gold: -10, raw: true, note: 'greedy' }));
+    }
+    const anySteal = steals.length > 0;
+    others.forEach((s) => {
+      const right = bets[s] === anySteal;
+      res.push({ seat: s, gold: right ? this.pay(s, 15) : 0, raw: true, note: right ? 'called it' : 'bad read' });
+    });
+    await this.wait(1800);
+    this.finish(res.sort((x, y) => y.gold - x.gold));
+  }
+
+  // ---------------------------------------------------------------- GOBLIN DERBY
+  async derby() {
+    const RACERS = [
+      { name: 'Speedy Gonk', key: 'goblin_grunt_idle', odds: 2, w: 0.42, tint: null },
+      { name: 'Sir Slime', key: 'slime_blob_idle', odds: 3, w: 0.28, tint: null },
+      { name: 'Drunk Gary', key: 'goblin_archer_idle', odds: 4, w: 0.20, tint: 0xffb0b0 },
+      { name: 'Grandpa Grib', key: 'goblin_grunt_idle', odds: 7, w: 0.10, tint: 0x9a9aa8 },
+    ];
+    const EVENTS = {
+      'Grandpa Grib': ['*stops to nap*', 'My hip!', 'Back in my day...'],
+      'Drunk Gary': ['*hic*', 'Which way is the finish?', 'I love you guys.'],
+      'Sir Slime': ['*blorp*', '*found a shortcut*'],
+      'Speedy Gonk': ['ZOOM', 'Eat my dust!'],
+    };
+    const BET = 15;
+    // bets (visible, it's a party)
+    const bets = {};
+    for (const s of this.players) {
+      bets[s] = await new Promise((resolve) => {
+        const c = this.add.container(0, 0).setDepth(800);
+        c.add(this.add.rectangle(320, 180, 640, 360, C.ink, 0.92).setInteractive());
+        const amt = Math.min(BET, run.party[s].gold);
+        c.add(text(this, 320, 50, `${this.name(s).toUpperCase()}: PICK A RACER (${amt}g bet)`, { size: 12, ox: 0.5, color: this.color(s) }));
+        RACERS.forEach((r, k) => {
+          const b = button(this, 40 + k * 142, 90, 134, 120, r.name.toUpperCase(), () => { c.destroy(); resolve(k); }, { size: 8, sub: `pays x${r.odds}`, subColor: T.gold });
+          c.add(b);
+          const img = this.add.image(40 + k * 142 + 67, 190, r.key).setOrigin(0.5, 1);
+          fitHeight(img, 40); img.setFlipX(true); if (r.tint) img.setTint(r.tint);
+          c.add(img);
+        });
+        const taken = Object.entries(bets).map(([p, b]) => `${this.name(Number(p))}: ${RACERS[b.k].name}`).join('   ');
+        c.add(text(this, 320, 240, taken, { size: 8, ox: 0.5, color: T.grey }));
+      });
+      const amt = Math.min(BET, run.party[s].gold);
+      run.party[s].gold -= amt;
+      run.party[s].st.gambled += amt;
+      bets[s] = { k: bets[s], amt };
+      sfx('coin');
+    }
+    // pre-roll finishing order (weighted), then animate a race that ends that way
+    const order = [];
+    let pool = RACERS.map((r, k) => k);
+    while (pool.length) {
+      const tot = pool.reduce((t, k) => t + RACERS[k].w, 0);
+      let r = rng.next() * tot;
+      let pickK = pool[0];
+      for (const k of pool) { r -= RACERS[k].w; if (r <= 0) { pickK = k; break; } }
+      order.push(pickK);
+      pool = pool.filter((k) => k !== pickK);
+    }
+    const finishT = {};
+    order.forEach((k, place) => { finishT[k] = 5200 + place * rng.int(250, 600); });
+    const startX = 60, endX = 580;
+    const g = this.add.graphics();
+    this.layer.add(g);
+    g.fillStyle(0x3a2a20, 1); g.fillRect(0, 110, 640, 200);
+    for (let k = 0; k < 4; k++) { g.fillStyle(k % 2 ? 0x4a3628 : 0x54402e, 1); g.fillRect(0, 120 + k * 46, 640, 44); }
+    g.fillStyle(0xf4f0e0, 1); for (let y = 120; y < 304; y += 8) { g.fillRect(endX + 12, y, 4, 4); g.fillRect(endX + 16, y + 4, 4, 4); }
+    const title = text(this, 320, 70, 'AND THEY\'RE OFF!', { size: 16, ox: 0.5, color: T.gold, depth: 200 });
+    this.layer.add(title);
+    const runners = RACERS.map((r, k) => {
+      const y = 160 + k * 46;
+      const img = this.add.image(startX, y, r.key).setOrigin(0.5, 1).setDepth(150 + k);
+      fitHeight(img, 38); img.setFlipX(false); if (r.tint) img.setTint(r.tint);
+      const tag = text(this, 8, y - 30, r.name, { size: 8, color: T.cream, depth: 160 });
+      const backers = Object.entries(bets).filter(([, b]) => b.k === k).map(([p]) => this.name(p)).join(', ');
+      const bk = text(this, 8, y - 18, backers, { size: 8, color: T.gold, depth: 160 });
+      this.layer.add([img, tag, bk]);
+      return { img, k, y, base: img.y };
+    });
+    sfx('crit');
+    const t0 = this.time.now;
+    const napAt = rng.int(1500, 3000);
+    let spoken = 0;
+    await new Promise((resolve) => {
+      const ev = this.time.addEvent({ delay: 40, loop: true, callback: () => {
+        const t = this.time.now - t0;
+        runners.forEach((r) => {
+          const T_ = finishT[r.k];
+          // wobbly progress that still lands on the pre-rolled finish time
+          let p = Math.min(1, t / T_);
+          p = p + Math.sin(t / 300 + r.k * 2) * 0.04 * (1 - p) * p * 4;
+          if (RACERS[r.k].name === 'Grandpa Grib' && t > napAt && t < napAt + 700) p -= 0.02;
+          r.img.x = startX + (endX - startX) * Math.max(0, Math.min(1, p));
+          r.img.y = r.base - (Math.floor(t / 120 + r.k) % 2) * 2;
+        });
+        if (t > 900 + spoken * 1300 && spoken < 3) {
+          const r = rng.pick(runners);
+          bubble(this, r.img.x, r.y - 40, rng.pick(EVENTS[RACERS[r.k].name]), 900);
+          spoken++;
+        }
+        if (t > Math.max(...Object.values(finishT)) + 200) { ev.remove(); resolve(); }
+      } });
+    });
+    const win = order[0];
+    title.setText(`${RACERS[win].name.toUpperCase()} WINS!`);
+    sfx('jackpot');
+    this.cameras.main.flash(150, 247, 197, 72);
+    await this.wait(1500);
+    const res = this.players.map((s) => {
+      const b = bets[s];
+      const won = b.k === win;
+      return { seat: s, gold: won ? this.pay(s, b.amt * RACERS[b.k].odds) : -b.amt, raw: true, note: `bet on ${RACERS[b.k].name}${won ? ' x' + RACERS[b.k].odds : ''}` };
+    });
+    this.finish(res.sort((x, y) => y.gold - x.gold));
   }
 
   // ---------------------------------------------------------------- results

@@ -19,7 +19,8 @@ gamble at the Goblin Casino and get probed by aliens.
 - Every friend has their own purse. Most **Crowns** at the end wins the night (buy them at the casino Crown Counter, boss MVP, bonus crowns).
 - The room picker rotates each room and keeps that room's loot.
 - Kill bounties: the gold from a kill goes to whoever landed it. Damage MVP gets a bonus.
-- A **showdown minigame after every room** (Quick Draw, Mash Off, High Card, Pick a Chest, Hot Potato).
+- A **showdown minigame after every room** (Quick Draw, Mash Off, High Card, Pick a Chest, Hot Potato, Split or Steal, Goblin Derby, Stop the Clock).
+- **Wheel of Misfortune** rooms: Mario Party Chance Time.
 - **Dirty cards** to screw your friends: Tax, Pickpocket, Swap, Skip, Double Down, Reverse.
 - Casino on most rows, everyone bets their own gold, ALL IN button.
 - End screen: Mario Party style bonus crowns, then the Biggest Degenerate.
