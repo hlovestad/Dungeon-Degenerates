@@ -40,6 +40,17 @@ TARGET_IDLE_H = {
     'goblin_grunt': 72,
 }
 DEFAULT_ENEMY_H = 72
+
+# Facing. The game expects every processed sprite to face RIGHT (it flips
+# enemies itself). The art prompt asks for heroes facing right and enemies/NPCs
+# facing left, so anything not in HEROES is mirrored here. If an enemy comes
+# back from ChatGPT already facing right, add it to SOURCE_FACES_RIGHT.
+HEROES = {'haakon', 'mike', 'griffin', 'josh', 'dani'}
+SOURCE_FACES_RIGHT = set()
+
+
+def faces_left_in_source(base):
+    return base not in HEROES and base not in SOURCE_FACES_RIGHT
 PORTRAIT = 64
 BG_SIZE = (480, 270)
 POSES = ('idle', 'attack', 'hurt', 'downed', 'cast', 'victory', 'heal', 'scold', 'happy', 'talk', 'special', 'portrait')
@@ -175,7 +186,10 @@ def process(raw_dir, out_dir, bg_dir, manifest_path):
             if not bbox:
                 report.append(f'SKIP {f.name}: empty after keying')
                 continue
-            cropped[pose] = im.crop(bbox)
+            im = im.crop(bbox)
+            if pose != 'portrait' and faces_left_in_source(base):
+                im = im.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            cropped[pose] = im
         if not cropped:
             continue
         ref = cropped.get('idle') or next(iter(v for k, v in cropped.items() if k != 'portrait'), None)

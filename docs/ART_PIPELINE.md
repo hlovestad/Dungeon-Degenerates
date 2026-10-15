@@ -46,6 +46,6 @@ Only `_idle` is required for any character. Every other pose falls back to idle,
 
 ## Notes
 
-- Heroes and Dani must face **right**; enemies and NPCs face **left** in the source art. (The game flips enemies, so if ChatGPT draws an enemy facing right, just flip it before processing.)
+- Source art: heroes and Dani face **right**; enemies and NPCs face **left**. `prep_sprites.py` mirrors every non-hero so all processed sprites face right, and the game flips enemies back to face the party. If ChatGPT draws an enemy facing right, add its name to `SOURCE_FACES_RIGHT` in the script instead of editing the image.
 - Backgrounds need an empty floor in the bottom third. The party stands on the left, enemies on the right.
 - On-screen sizes are fixed in `src/config.js` (`SPRITE_HEIGHT`), so source resolution doesn't matter.
