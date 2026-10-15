@@ -6,7 +6,7 @@ import { ENEMIES } from '../data/enemies.js';
 import { CLASSES } from '../data/classes.js';
 import { RACES } from '../data/races.js';
 import { text, panel, button, floater, bubble, hpBar, fadeTo, fadeIn, dimmer } from '../ui/ui.js';
-import { background, actor } from '../ui/stage.js';
+import { background, actor, spawnDani } from '../ui/stage.js';
 import { run, rng } from '../systems/state.js';
 import * as K from '../systems/combat.js';
 import { sfx } from '../audio/sfx.js';
@@ -35,7 +35,7 @@ export class BattleScene extends Phaser.Scene {
       if (!u.alive) this.layDown(a, true);
       this.addView(u, a);
       if (u.race === 'griffin') {
-        this.dani = actor(this, 'dani', s.x - 34, s.y - 16, SPRITE_HEIGHT.companion, { float: 14, depth: s.y - 17 });
+        this.dani = spawnDani(this, a);
         this.daniHome = { x: this.dani.x, y: this.dani.y };
       }
     });
@@ -50,11 +50,14 @@ export class BattleScene extends Phaser.Scene {
     panel(this, 96, 4, 448, 34, { alpha: 0.88 }).setDepth(90);
     this.logText = text(this, 320, 21, '', { size: 8, ox: 0.5, oy: 0.5, wrap: 430, align: 'center', depth: 91, lineSpacing: 4 });
     this.roundText = text(this, 8, 8, '', { size: 8, color: T.grey, depth: 91 });
-    this.goldText = text(this, 632, 8, '', { size: 8, color: T.gold, ox: 1, depth: 91 });
+    this.goldText = text(this, 632, 44, '', { size: 8, color: T.gold, ox: 1, depth: 91 });
     this.arrow = text(this, 0, 0, 'v', { size: 12, ox: 0.5, oy: 1, color: T.gold, depth: 95 }).setVisible(false);
     this.tweens.add({ targets: this.arrow, y: '+=3', duration: 260, yoyo: true, repeat: -1, ease: 'Stepped' });
     this.bar = this.add.container(0, 0).setDepth(100);
     this.refreshTop();
+    if (data.test) {
+      button(this, 8, 42, 84, 30, 'POSES', () => this.poseShow(), { size: 8, fill: 0x2a3a6a, depth: 96 });
+    }
 
     this.intro().then(() => this.loop());
   }
@@ -307,6 +310,7 @@ export class BattleScene extends Phaser.Scene {
         const h = this.head(ev.uid);
         floater(this, h.x, h.y - 6, ev.name + (ev.quality === 'perfect' ? '!!' : ''), ev.quality === 'perfect' ? T.gold : T.blue, 10);
         v.a.setPose('cast');
+        this.burst(v.a.x + 18, v.a.y - v.a.h * 0.6, ev.quality === 'perfect' ? 0xf7c548 : 0x7fe0f0, ev.quality === 'perfect' ? 26 : 14);
         this.time.delayedCall(500, () => v.a.setPose('idle'));
         return this.wait(320);
       }
@@ -397,6 +401,7 @@ export class BattleScene extends Phaser.Scene {
     }
     v.a.sprite.setTintFill(0xffffff);
     this.time.delayedCall(90, () => v.a.sprite.clearTint());
+    this.burst(v.a.x, v.a.y - v.a.h * 0.55, ev.crit ? 0xf7c548 : 0xfff6e0, ev.crit ? 18 : 8);
     v.a.setPose('hurt');
     this.time.delayedCall(350, () => v.u.alive && v.a.setPose('idle'));
     if (ev.crit) {
@@ -564,6 +569,41 @@ export class BattleScene extends Phaser.Scene {
     await this.tween({ targets: d, x: this.daniHome.x, y: this.daniHome.y, duration: 300 });
     d.setDepth(this.daniHome.y - 1);
     d.setPose('idle');
+  }
+
+  // Small pixel particle burst (impacts, spells).
+  burst(x, y, color = 0xffffff, n = 10) {
+    const e = this.add.particles(x, y, 'px', {
+      speed: { min: 40, max: 140 }, angle: { min: 0, max: 360 }, lifespan: { min: 250, max: 520 },
+      scale: { start: 1.4, end: 0 }, gravityY: 180, tint: color, emitting: false,
+    }).setDepth(320);
+    e.explode(n);
+    this.time.delayedCall(700, () => e.destroy());
+  }
+
+  // ART TEST ONLY: cycle every hero (and Dani) through every pose.
+  async poseShow() {
+    if (this.posing) return;
+    this.posing = true;
+    const heroes = Object.values(this.views).filter((v) => v.u.side === 'hero');
+    const steps = ['attack', 'cast', 'hurt', 'victory', 'downed', 'idle'];
+    for (const pose of steps) {
+      this.setLog(`POSE: ${pose.toUpperCase()}`);
+      heroes.forEach((v) => {
+        v.a.setPose(pose);
+        if (pose === 'attack') this.tweens.add({ targets: v.a, x: v.a.x + 24, duration: 140, yoyo: true, ease: 'Quad.Out' });
+        if (pose === 'cast') this.burst(v.a.x + 18, v.a.y - v.a.h * 0.6, 0x7fe0f0, 12);
+        if (pose === 'hurt') {
+          v.a.sprite.setTintFill(0xffffff);
+          this.time.delayedCall(90, () => v.a.sprite.clearTint());
+          this.tweens.add({ targets: v.a, x: v.a.x - 4, duration: 50, yoyo: true, repeat: 2 });
+        }
+      });
+      if (this.dani) this.dani.setPose({ attack: 'attack', cast: 'heal', hurt: 'scold', victory: 'happy' }[pose] || 'idle');
+      await this.wait(1400);
+    }
+    this.setLog('Tap POSES to see them again.');
+    this.posing = false;
   }
 
   // A silly rule for this fight, announced like a game show.

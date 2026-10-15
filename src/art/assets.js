@@ -41,6 +41,20 @@ const PLACEHOLDERS = {
 ICON_KEYS.forEach((k) => { PLACEHOLDERS[k] = () => drawIcon(k); });
 BG_KEYS.forEach((k) => { PLACEHOLDERS[k] = () => drawBackground(k); });
 
+import { ART_SCALE } from '../config.js';
+
+// Keys that came from real (preprocessed) art. Those are drawn at their native
+// size times ART_SCALE; placeholders are stretched to a target height instead.
+export const REAL = new Set();
+export function isReal(key) { return REAL.has(key); }
+
+// Size a sprite: real art keeps its authored size, placeholders fit `height`.
+export function sizeSprite(sprite, height) {
+  if (isReal(sprite.texture.key)) sprite.setScale(ART_SCALE);
+  else fitHeight(sprite, height);
+  return sprite;
+}
+
 export function registerPlaceholders(scene) {
   for (const [key, fn] of Object.entries(PLACEHOLDERS)) {
     if (scene.textures.exists(key)) continue;

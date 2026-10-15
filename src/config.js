@@ -50,11 +50,18 @@ export const SPRITE_HEIGHT = {
 
 // Where units stand in a battle scene (feet positions). Heroes on the left
 // facing right, enemies on the right facing left, like For The King.
+// Real art is authored for a 480x270 stage; it's drawn at ART_SCALE so it keeps
+// those proportions on our 640x360 canvas.
+export const ART_BASE = { width: 480, height: 270 };
+export const ART_SCALE = W / ART_BASE.width;
+// Dani hovers this many art pixels above the ground.
+export const DANI_HOVER = 12;
+
 export const HERO_SLOTS = [
-  { x: 232, y: 254 },
-  { x: 168, y: 226 },
-  { x: 140, y: 274 },
-  { x: 84, y: 240 },
+  { x: 296, y: 274 },
+  { x: 212, y: 242 },
+  { x: 178, y: 282 },
+  { x: 118, y: 248 },
 ];
 export const ENEMY_SLOTS = [
   { x: 446, y: 252 },

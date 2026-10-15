@@ -5,7 +5,7 @@ import { CARDS, playCard } from '../systems/cards.js';
 import { FORMATIONS, FIGHT_BG } from '../data/enemies.js';
 import { RACES } from '../data/races.js';
 import { pickEvent } from './Event.js';
-import { fitHeight, poseKey } from '../art/assets.js';
+import { fitHeight, poseKey, isReal } from '../art/assets.js';
 import { sfx, toggleMute, isMuted, unlockAudio } from '../audio/sfx.js';
 
 const NODE_LABEL = {
@@ -100,7 +100,9 @@ export class MapScene extends Phaser.Scene {
       const x = 6 + i * 157;
       const isLeader = i === run.leader;
       panel(this, x, 4, w, 42, { alpha: 0.92, border: isLeader ? C.gold : C.border, fill: isLeader ? 0x3b2a52 : C.panel }).setDepth(25);
-      const s = this.add.image(x + 14, 42, poseKey(this, h.race, 'idle')).setOrigin(0.5, 1).setDepth(26);
+      // UI uses the portrait when real art has one
+      const pk = isReal(`${h.race}_portrait`) ? `${h.race}_portrait` : poseKey(this, h.race, 'idle');
+      const s = this.add.image(x + 14, 42, pk).setOrigin(0.5, 1).setDepth(26);
       fitHeight(s, 34);
       if (h.hp <= 0) s.setTint(0x555555);
       text(this, x + 30, 9, h.name.toUpperCase(), { size: 8, color: RACES[h.race].color, depth: 26 });

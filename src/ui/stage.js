@@ -1,7 +1,8 @@
 // Helpers for putting characters into a scene: backgrounds, shadows, idle
 // bobbing, Dani hovering beside Griffin, the party walking in.
 import { SPRITE_HEIGHT, HERO_SLOTS, C } from '../config.js';
-import { fitHeight, poseKey } from '../art/assets.js';
+import { fitHeight, poseKey, sizeSprite, isReal } from '../art/assets.js';
+import { ART_SCALE, DANI_HOVER } from '../config.js';
 import { run } from '../systems/state.js';
 import { text } from './ui.js';
 import { T } from '../config.js';
@@ -18,26 +19,37 @@ export function actor(scene, base, x, y, height, { flip = false, bob = true, flo
   const cont = scene.add.container(x, y);
   const shadow = scene.add.ellipse(0, 0, Math.max(18, height * 0.45), 7, C.ink, 0.45);
   const sprite = scene.add.image(0, -float, poseKey(scene, base, 'idle')).setOrigin(0.5, 1);
-  fitHeight(sprite, height);
+  sizeSprite(sprite, height);
   sprite.setFlipX(flip);
+  if (isReal(sprite.texture.key)) shadow.setSize(Math.max(18, sprite.displayWidth * 0.5), 7);
   cont.add([shadow, sprite]);
   cont.sprite = sprite;
   cont.shadow = shadow;
   cont.base = base;
-  cont.h = height;
+  cont.h = sprite.displayHeight;
   cont.float = float;
   cont.setDepth(depth ?? y);
   if (bob) {
+    // idle: a 1px "breathing" bob; floaters (Dani, drones) get a slow gentle hover
     scene.tweens.add({
-      targets: sprite, y: sprite.y - (float ? 4 : 1), duration: float ? 900 : 520 + Math.random() * 200,
+      targets: sprite, y: sprite.y - (float ? 3 : 1), duration: float ? 1100 : 520 + Math.random() * 200,
       yoyo: true, repeat: -1, ease: float ? 'Sine.InOut' : 'Stepped', delay: Math.random() * 400,
     });
   }
   cont.setPose = (pose) => {
     const k = poseKey(scene, base, pose);
-    if (sprite.texture.key !== k) { sprite.setTexture(k); fitHeight(sprite, height); }
+    if (sprite.texture.key !== k) { sprite.setTexture(k); sizeSprite(sprite, height); }
   };
   return cont;
+}
+
+// Dani hovers beside and slightly behind Griffin (behind = to his left, drawn
+// underneath him), ~12 art px off the ground.
+export function spawnDani(scene, griffin, depthOffset = 1) {
+  const hover = isReal('dani_idle') ? Math.round(DANI_HOVER * ART_SCALE) : 14;
+  const gx = griffin.x, gy = griffin.y;
+  const back = Math.max(26, griffin.sprite.displayWidth * 0.45);
+  return actor(scene, 'dani', gx - back, gy - 6, SPRITE_HEIGHT.companion, { float: hover, depth: gy - 6 - depthOffset });
 }
 
 // Spawn the whole party at the standard left-side slots, plus Dani if Griffin
@@ -52,7 +64,7 @@ export function spawnParty(scene, { walkIn = true, slots = HERO_SLOTS, onlyAlive
     if (h.hp <= 0 && onlyAlive) a.setVisible(false);
     heroes.push(a);
     if (h.race === 'griffin') {
-      dani = actor(scene, 'dani', s.x - 30, s.y - 8, SPRITE_HEIGHT.companion, { float: 14, depth: s.y - 9 });
+      dani = spawnDani(scene, a);
     }
   });
   if (walkIn) {

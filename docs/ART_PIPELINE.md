@@ -1,5 +1,24 @@
 # Art pipeline: ChatGPT to game
 
+## Current: approved art in assets/raw
+
+1. Put approved PNGs in `assets/raw/`, named per the manifest (`haakon_idle.png`, `goblin_grunt_idle.png`, `bg_dungeon_crypt.png`...). Commit and push them.
+2. Run `python tools/prep_sprites.py` (Pillow required). It never touches `assets/raw/`. It:
+   - keys out magenta (#FF00FF, with tolerance) with hard edges, no semi-transparent pixels
+   - crops to content
+   - scales every pose of a character by ONE factor taken from its idle (box downsampling). Idle heights on the 480x270 art stage: Haakon 104, Mike 92, Griffin 96, Josh 96, Dani 85% of Griffin, goblin_grunt 72
+   - anchors every sprite on its feet (padded so the feet are bottom-center), so poses swap without jumping
+   - backgrounds -> 480x270, portraits -> 64x64 (UI only, never in battle)
+   - registers everything in `assets/manifest.json`
+3. The game draws real art at native size x `ART_SCALE` (640/480) and keeps placeholders for anything missing.
+4. Check it: open the game with `?test=battle` (party vs two goblin grunts in the crypt) and tap POSES to cycle every pose.
+
+Animation is done in code from single poses: breathing bob, lunge on attack, flash + shake on hurt, downed pose, Dani's hover bob, pixel particles on hits and casts.
+
+## Older: tools/process_art.py
+
+
+
 1. Get a batch of PNGs from ChatGPT using the art prompt (one character, one pose per image, magenta `#FF00FF` background, filenames like `haakon_idle.png`).
 2. Put the batch in any folder, then run from the project folder:
 
