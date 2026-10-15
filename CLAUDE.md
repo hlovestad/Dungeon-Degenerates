@@ -11,6 +11,7 @@ Read `docs/HANDOFF_FROM_CHATGPT.md` for the full vision. Locked-in rules:
 - **Griffin:** long hair, mustache. **Dani** belongs only to Griffin, black hair, horns/wings, **fully clothed** (high-neck tunic, long coat, gloves, boots). Her interruptions must stay occasional.
 - Any race can take any class; signature race+class pairs get a bonus.
 - No real money anywhere.
+- **Every friend plays on their own phone, remotely. No phone passing, no shared screen, no hotseat.** Haakon can't play-test in person, so every feature must be testable solo: bots fill empty seats, and multiple browser tabs can act as multiple players.
 
 ## Architecture
 

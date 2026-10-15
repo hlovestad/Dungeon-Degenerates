@@ -17,7 +17,10 @@ Status: all three done in v0.2.
 - Wanted: lots of party games. Ideas: an Uno-style shedding card game (needs our own name and card design, not Uno branding), more trivia packs, dice duels, reaction races, drawing/guessing.
 - Best with the online lobby so everyone plays from their own phone.
 
-## Online lobby
+## Online lobby (top priority as of 2026-10-15)
+
+- Decision: no phone passing at all. Each friend is on their own phone, not in the same room. Online multiplayer is required, not optional.
+- Haakon tests alone: needs bots for empty seats and multi-tab play.
 
 - Supabase project created: `Dungeon-Degenerates` (https://fbphgkkcqlubmbqgvyva.supabase.co).
 - Needed from the dashboard when we build it: the **publishable / anon key** only (Project Settings > API Keys). Never commit the secret / service_role key.
