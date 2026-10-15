@@ -26,6 +26,8 @@ export class WhackScene extends Phaser.Scene {
     this.crawl = this.mode === 'crawl' && run;
     background(this, 'bg_goblin_market');
     this.mike = this.crawl && run.party.some((h) => h.race === 'mike' && h.hp > 0);
+    // In a run, the friend who picked this room plays and keeps the gold.
+    this.seat = this.crawl ? (run.roomLeader ?? 0) : null;
     if (this.crawl) {
       this.party = spawnParty(this, { slots: SCENE_SLOTS.map((s) => ({ x: s.x - 22, y: s.y + 10 })) });
     }
@@ -49,7 +51,7 @@ export class WhackScene extends Phaser.Scene {
     this.drawHud();
     this.ui = this.add.container(0, 0).setDepth(700);
     this.ui.add(panel(this, 150, 90, 340, 110));
-    this.ui.add(text(this, 320, 102, 'WHACK-A-GOBLIN', { size: 16, ox: 0.5, color: T.gold }));
+    this.ui.add(text(this, 320, 102, this.crawl ? `WHACK-A-GOBLIN: ${run.party[this.seat].name.toUpperCase()}` : 'WHACK-A-GOBLIN', { size: this.crawl ? 12 : 16, ox: 0.5, color: T.gold }));
     this.ui.add(text(this, 320, 128, `Tap goblins: +3g.  Gold ones: +10g.\nBomb goblins: -5g.${this.mike ? "\nCrowned ones are Mike's cousins: -5g!" : ''}`, { size: 8, ox: 0.5, align: 'center', lineSpacing: 5 }));
     this.ui.add(button(this, 250, 162 + (this.mike ? 10 : 0), 140, 30, 'START', () => this.start(), { size: 10, fill: 0x2a5a3a }));
   }
@@ -159,7 +161,7 @@ export class WhackScene extends Phaser.Scene {
     } catch (e) { /* storage blocked */ }
     // In a run the payout is capped so spam-tapping can't break the economy.
     const payout = Math.min(this.score, 45);
-    if (this.crawl) addGold(payout);
+    if (this.crawl) addGold(this.seat, payout);
     this.time.delayedCall(500, () => {
       this.ui.add(panel(this, 150, 90, 340, 120));
       this.ui.add(text(this, 320, 104, "TIME'S UP!", { size: 16, ox: 0.5, color: T.gold }));

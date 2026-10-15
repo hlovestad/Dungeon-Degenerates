@@ -2,6 +2,11 @@ import { T, SPRITE_HEIGHT } from '../config.js';
 import { text, panel, button, bubble, floater, fadeTo, fadeIn } from '../ui/ui.js';
 import { background, actor, spawnParty } from '../ui/stage.js';
 import { run, rng, hasRace, addGold } from '../systems/state.js';
+
+// The friend who picked this room makes the call and keeps the loot.
+const li = () => run.roomLeader ?? 0;
+const L = () => run.party[li()];
+const seatOf = (h) => run.party.indexOf(h);
 import { sfx } from '../audio/sfx.js';
 import { fitHeight } from '../art/assets.js';
 
@@ -41,20 +46,27 @@ const EVENTS = {
     bg: 'bg_treasure_vault',
     setup: (s) => s.prop('prop_chest', 450, 214, 40),
     title: 'TREASURE',
-    body: () => 'A chest. It has not bitten anyone. Yet.',
+    body: () => `A chest. It has not bitten anyone. Yet. ${L().name} found it, so ${L().name} decides.`,
     choices: () => [
       {
         label: 'OPEN IT', run: () => {
           let g = rng.int(30, 60);
-          let msg = `Inside: ${g} gold`;
-          if (run.party.some((h) => h.cls === 'rogue' && h.hp > 0)) { g += 20; msg += ' (+20 from the Rogue checking for false bottoms)'; }
-          addGold(g);
-          if (rng.chance(0.45)) { run.potions++; msg += ' and a Health Potion'; }
+          let msg = `${L().name} opens it: ${g} gold, all for ${L().name}`;
+          if (L().cls === 'rogue') { g += 20; msg += ' (+20, Rogues check for false bottoms)'; }
+          addGold(li(), g);
+          if (rng.chance(0.45)) { run.potions++; msg += ', plus a Health Potion for the party'; }
           sfx('coin');
           return { text: msg + '.', gold: true };
         },
       },
-      { label: 'LEAVE IT', run: () => ({ text: 'You leave a perfectly good chest alone. Growth.' }) },
+      {
+        label: 'SPLIT IT', sub: 'share with everyone', run: () => {
+          const g = rng.int(30, 60);
+          const each = Math.floor(g / run.party.length);
+          run.party.forEach((h, i) => addGold(i, each));
+          return { text: `${L().name} is feeling generous. ${g} gold split four ways: ${each} each. Weird flex.`, gold: true };
+        },
+      },
     ],
   },
 
@@ -92,8 +104,8 @@ const EVENTS = {
       if (h) {
         const lift = (odds, prefix) => {
           if (rng.chance(odds)) {
-            addGold(50); h.atk += 2; sfx('coin');
-            return { text: `${prefix}Haakon lifts it alone. +50 gold, and Haakon gains +2 ATK. He will mention this later.` };
+            addGold(seatOf(h), 50); h.atk += 2; sfx('coin');
+            return { text: `${prefix}Haakon lifts it alone. Haakon keeps all 50 gold and gains +2 ATK. He will mention this later.` };
           }
           hurt(h, 12); sfx('hit');
           return { text: `${prefix}The boulder wins. Haakon takes 12 damage and insists that was on purpose.` };
@@ -106,7 +118,7 @@ const EVENTS = {
       return [
         {
           label: 'PUSH TOGETHER', sub: '55% success', run: () => {
-            if (rng.chance(0.55)) { addGold(35); sfx('coin'); return { text: 'Teamwork! +35 gold.' }; }
+            if (rng.chance(0.55)) { addGold(li(), 35); sfx('coin'); return { text: `Teamwork! ${L().name} pockets all 35 gold before anyone notices.` }; }
             livingParty().forEach((p) => hurt(p, 4));
             return { text: 'Everyone pulls a muscle. -4 HP each.' };
           },
@@ -127,8 +139,8 @@ const EVENTS = {
     body: () => 'Dani crosses her arms. "You said this dungeon would be romantic, Griffin."',
     choices: () => [
       {
-        label: 'DATE NIGHT', sub: '-30 gold', enabled: () => run.gold >= 30, run: () => {
-          run.gold -= 30; run.flags.daniDate = true; sfx('heal');
+        label: 'DATE NIGHT', sub: "-30 of Griffin's gold", enabled: () => alive('griffin').gold >= 30, run: () => {
+          alive('griffin').gold -= 30; run.flags.daniDate = true; sfx('heal');
           return { text: 'Candlelit dinner in a crypt. Dani is happy. She will heal everyone at the start of the next fight.' };
         },
       },
@@ -140,7 +152,7 @@ const EVENTS = {
       },
       {
         label: 'NOT NOW, BABE', run: () => {
-          run.flags.daniAngry = true; addGold(15);
+          run.flags.daniAngry = true; addGold(seatOf(alive('griffin')), 15);
           return { text: 'Griffin keeps looting (+15 gold). Dani will remember this. Next fight, she will make him pay.' };
         },
       },
@@ -151,20 +163,20 @@ const EVENTS = {
     bg: 'bg_devil_shrine',
     setup: (s) => s.npc('npc_devil_dealer', 460, 214, 'Standard terms. Totally fair.'),
     title: "THE DEVIL'S OFFER",
-    body: () => 'A devil in a nice suit slides a contract across the floor. 120 gold for "a little life force."',
+    body: () => `A devil in a nice suit slides a contract to ${L().name}. 120 gold for "a little life force."`,
     choices: () => [
       {
         label: 'SIGN IT', sub: '+120g, lose max HP', run: () => {
-          const signer = livingParty().sort((a, b) => b.maxHp - a.maxHp)[0];
+          const signer = L();
           const loss = Math.round(signer.maxHp * 0.25);
           signer.maxHp -= loss; signer.hp = Math.min(signer.hp, signer.maxHp);
-          addGold(120); sfx('coin');
+          addGold(li(), 120); sfx('coin');
           return { text: `${signer.name} signs it without reading. +120 gold. ${signer.name} loses ${loss} max HP forever.` };
         },
       },
       {
         label: 'HAGGLE', sub: '50/50', run: () => {
-          if (rng.chance(0.5)) { addGold(60); sfx('coin'); return { text: 'The devil respects the hustle. 60 gold, no strings.' }; }
+          if (rng.chance(0.5)) { addGold(li(), 60); sfx('coin'); return { text: `The devil respects the hustle. 60 gold to ${L().name}, no strings.` }; }
           livingParty().forEach((p) => hurt(p, 6)); sfx('hit');
           return { text: 'He charges a consultation fee. In blood. -6 HP each.' };
         },
@@ -188,14 +200,14 @@ const EVENTS = {
       if (alive('mike')) {
         c.push({
           label: 'MIKE SPEAKS GOBLIN', run: () => {
-            addGold(20); sfx('coin');
-            return { text: 'Mike grunts something. The goblins weep with pride and hand over a "family refund." +20 gold.' };
+            addGold(seatOf(alive('mike')), 20); sfx('coin');
+            return { text: 'Mike grunts something. The goblins weep with pride and hand Mike a "family refund." +20 gold for Mike.' };
           },
         });
       }
       c.push({
-        label: 'PAY 25 GOLD', enabled: () => run.gold >= 25,
-        run: () => { run.gold -= 25; return { text: 'You pay. The goblins bite every coin to check it.' }; },
+        label: 'EVERYONE PAYS 8', sub: '8 gold each',
+        run: () => { run.party.forEach((h) => { h.gold = Math.max(0, h.gold - 8); }); return { text: 'Everybody chips in. The goblins bite every coin to check it.' }; },
       });
       c.push({
         label: 'FIGHT', run: () => ({
@@ -225,7 +237,7 @@ export class EventScene extends Phaser.Scene {
     this.refreshGold();
   }
 
-  refreshGold() { this.goldLabel.setText(`${run.gold}g  potions ${run.potions}`); }
+  refreshGold() { this.goldLabel.setText(`${L().name}'s call  -  ${L().name}: ${L().gold}g`); }
 
   prop(key, x, y, h, glow) {
     const img = this.add.image(x, y, key).setOrigin(0.5, 1).setDepth(y);

@@ -14,6 +14,17 @@ gamble at the Goblin Casino and get probed by aliens.
   Goblin Market, Goblin Casino, campfire, treasure/mimics, and events
   (Boulder of Pride, Dani Needs to Talk, The Devil's Offer, Goblin Toll).
 
+## New in v0.3: it's a party game now
+
+- Every friend has their own purse. Most **Crowns** at the end wins the night (buy them at the casino Crown Counter, boss MVP, bonus crowns).
+- The room picker rotates each room and keeps that room's loot.
+- Kill bounties: the gold from a kill goes to whoever landed it. Damage MVP gets a bonus.
+- A **showdown minigame after every room** (Quick Draw, Mash Off, High Card, Pick a Chest, Hot Potato).
+- **Dirty cards** to screw your friends: Tax, Pickpocket, Swap, Skip, Double Down, Reverse.
+- Casino on most rows, everyone bets their own gold, ALL IN button.
+- End screen: Mario Party style bonus crowns, then the Biggest Degenerate.
+- Full minigame list and ideas: [docs/MINIGAMES.md](docs/MINIGAMES.md)
+
 ## New in v0.2
 
 - Every battle button says what it does.

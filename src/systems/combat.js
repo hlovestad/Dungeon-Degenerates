@@ -37,7 +37,7 @@ export function createBattle(enemyIds, type, depth = 1) {
       cd: 0, st: {}, turns: 0,
     });
   });
-  const b = { type, units, order: [], turn: 0, round: 0, over: null, daniCd: 1, daniForced: !!run.flags.daniAngry, pending: [], quipped: {} };
+  const b = { type, depth, units, order: [], turn: 0, round: 0, over: null, daniCd: 1, daniForced: !!run.flags.daniAngry, pending: [], quipped: {} };
   b.mod = pickModifier(b);
   return b;
 }
@@ -199,7 +199,7 @@ function daniCheck(b, griffin, ev) {
     const foe = rng.pick(aliveOf(enemies(b)));
     if (!foe) return null;
     ev.push({ t: 'dani', action: 'bolt', uid: griffin.uid, target: foe.uid });
-    dealDamage(b, null, foe, 10, { magic: true, ev });
+    dealDamage(b, null, foe, 10, { magic: true, ev, credit: griffin });
     ev.push({ t: 'log', text: `Dani blasts the ${foe.name}. Nobody touches her man.` });
     return 'bolt';
   }
@@ -252,7 +252,13 @@ function dealDamage(b, attacker, target, raw, opts = {}) {
   dmg *= 0.88 + rng.next() * 0.24;
   if (opts.crit) dmg *= 2;
   dmg = Math.max(1, Math.round(dmg));
+  const dealt = Math.min(target.hp, dmg);
   target.hp = Math.max(0, target.hp - dmg);
+  const credit = attacker || opts.credit;
+  if (credit && credit.side === 'hero' && target.side === 'enemy') {
+    credit.dmgDealt = (credit.dmgDealt || 0) + dealt;
+    run.party[credit.heroIndex].st.dmg += dealt;
+  }
   ev.push({ t: 'damage', uid: target.uid, amount: dmg, crit: !!opts.crit, big: !!opts.big });
   if (target.hp <= 0) {
     target.alive = false;
@@ -260,6 +266,15 @@ function dealDamage(b, attacker, target, raw, opts = {}) {
     ev.push({ t: 'die', uid: target.uid });
     if (target.side === 'enemy') {
       run.stats.kills++;
+      // Kill bounty: the gold goes to whoever landed the last hit. Steal kills.
+      if (credit && credit.side === 'hero') {
+        const [lo, hi] = ENEMIES[target.key].gold;
+        const bounty = Math.round(rng.int(lo, hi) * (1 + 0.08 * (b.depth || 1)));
+        run.party[credit.heroIndex].gold += bounty;
+        run.party[credit.heroIndex].st.kills++;
+        run.stats.goldEarned += bounty;
+        ev.push({ t: 'gold', uid: credit.uid, amount: bounty, label: 'BOUNTY' });
+      }
       if (attacker && attacker.race === 'mike' && target.faction === 'goblin') quip(b, attacker, 'killGoblin', ev, 0.7);
       else quip(b, attacker, 'kill', ev, 0.35);
     } else { run.stats.deaths++; ev.push({ t: 'log', text: `${target.name} is down!` }); }
@@ -410,9 +425,9 @@ function doAbility(b, a, id, target, sig, ev, quality) {
       const crit = rng.chance(luck(quality === 'perfect' ? 0.8 : 0.45, a));
       basicStrike(b, a, target, 1.0, ev, { crit });
       const g = rng.int(5, 15);
-      run.gold += g;
+      run.party[a.heroIndex].gold += g;
       run.stats.goldEarned += g;
-      ev.push({ t: 'gold', uid: target.uid, amount: g });
+      ev.push({ t: 'gold', uid: a.uid, amount: g });
       break;
     }
   }
@@ -454,9 +469,14 @@ export function enemyTurn(b, opts = {}) {
     ev.push({ t: 'attack', uid: a.uid, target: target.uid, kind: 'magic' });
     if (opts.dodged) ev.push({ t: 'log', text: 'DODGED! The party ducks behind Haakon. Half damage.' });
     targets.forEach((h) => dealDamage(b, a, h, a.atk * (opts.dodged ? 0.32 : 0.65), { magic: true, ev }));
-    const stolen = Math.min(run.gold, 15);
-    if (stolen) { run.gold -= stolen; ev.push({ t: 'gold', uid: a.uid, amount: -stolen }); }
-    ev.push({ t: 'log', text: `The Landlord collects rent: damage to everyone${stolen ? ` and ${stolen} gold` : ''}.` });
+    let stolen = 0;
+    targets.forEach((h) => {
+      const p = run.party[h.heroIndex];
+      const fee = Math.min(p.gold, opts.dodged ? 5 : 10);
+      p.gold -= fee; stolen += fee;
+      if (fee) ev.push({ t: 'gold', uid: h.uid, amount: -fee, label: 'RENT' });
+    });
+    ev.push({ t: 'log', text: `The Landlord collects rent: damage to everyone${stolen ? ` and ${stolen} gold total` : ''}.` });
     checkOver(b);
     return ev;
   }
@@ -481,15 +501,19 @@ export function finishBattle(b) {
     const h = run.party[u.heroIndex];
     h.hp = u.alive ? u.hp : (b.over === 'win' ? Math.ceil(h.maxHp * 0.25) : 0);
   });
-  let gold = 0;
+  // MVP: most damage this fight gets a bonus (and bragging rights).
+  let mvp = null;
   if (b.over === 'win') {
-    enemies(b).forEach((e) => {
-      const [lo, hi] = ENEMIES[e.key].gold;
-      gold += rng.int(lo, hi);
-    });
-    if (b.type === 'elite') gold += 20;
-    run.gold += gold;
-    run.stats.goldEarned += gold;
+    const best = heroes(b).filter((u) => u.dmgDealt).sort((x, y) => y.dmgDealt - x.dmgDealt)[0];
+    if (best) {
+      const bonus = b.type === 'elite' ? 30 : b.type === 'boss' ? 0 : 15;
+      run.party[best.heroIndex].gold += bonus;
+      run.stats.goldEarned += bonus;
+      mvp = { heroIndex: best.heroIndex, name: best.name, dmg: best.dmgDealt, bonus };
+    }
+    // Beating the boss: the MVP gets a Crown.
+    if (b.type === 'boss' && best) { run.party[best.heroIndex].crowns += 1; mvp.crown = true; }
   }
-  return { gold };
+  const dmgTable = heroes(b).map((u) => ({ heroIndex: u.heroIndex, name: u.name, dmg: u.dmgDealt || 0 }));
+  return { mvp, dmgTable };
 }

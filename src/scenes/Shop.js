@@ -1,13 +1,18 @@
 import { T, SPRITE_HEIGHT } from '../config.js';
 import { ITEMS, SHOP_POOL } from '../data/items.js';
+import { RACES } from '../data/races.js';
 import { text, panel, button, bubble, floater, fadeTo, fadeIn } from '../ui/ui.js';
 import { background, actor, spawnParty } from '../ui/stage.js';
-import { run, rng } from '../systems/state.js';
+import { run, rng, giveCard } from '../systems/state.js';
+import { CARDS } from '../systems/cards.js';
 import { SCENE_SLOTS } from './Event.js';
 import { sfx } from '../audio/sfx.js';
 import { fitHeight } from '../art/assets.js';
 
-// The goblin market. Mike gets the family discount.
+// The goblin market. Everyone shops with their own gold.
+// Mike gets the family discount (just Mike). Dirty cards are on sale too.
+const CARD_PRICE = 15;
+
 export class ShopScene extends Phaser.Scene {
   constructor() { super('Shop'); }
 
@@ -15,62 +20,82 @@ export class ShopScene extends Phaser.Scene {
     fadeIn(this);
     background(this, 'bg_goblin_market');
     this.party = spawnParty(this, { slots: SCENE_SLOTS });
-    this.mike = run.party.some((h) => h.race === 'mike' && h.hp > 0);
-    this.discount = this.mike ? 0.7 : 1;
-
-    const m = actor(this, 'npc_goblin_merchant', 470, 214, SPRITE_HEIGHT.npc + 6, { flip: true });
+    actor(this, 'npc_goblin_merchant', 470, 214, SPRITE_HEIGHT.npc + 6, { flip: true });
+    const mike = run.party.some((h) => h.race === 'mike');
     this.time.delayedCall(600, () => bubble(this, 470, 130,
-      this.mike ? 'COUSIN MIKE! Family discount for you. 30% off!' : 'Welcome, tall-folk. Prices are prices.', 2600));
+      mike ? 'COUSIN MIKE! 30% off for you. Everyone else pays full price.' : 'Welcome, tall-folk. Prices are prices.', 2600));
 
-    this.stock = rng.shuffle(SHOP_POOL).slice(0, 4);
+    // stock: 3 items + a dirty card
+    this.stock = rng.shuffle(SHOP_POOL).slice(0, 3).concat(['card']);
     this.sold = [];
-    this.goldLabel = text(this, 632, 8, '', { size: 10, color: T.gold, ox: 1, depth: 600 });
+    this.buyer = run.roomLeader ?? 0;
     this.ui = this.add.container(0, 0).setDepth(500);
     this.pickZones = [];
     this.drawShop();
   }
 
-  price(id) { return Math.round(ITEMS[id].price * this.discount); }
+  price(id, buyer = this.buyer) {
+    const base = id === 'card' ? CARD_PRICE : ITEMS[id].price;
+    return Math.round(base * (run.party[buyer].race === 'mike' ? 0.7 : 1));
+  }
 
   drawShop(msg) {
     this.ui.removeAll(true);
-    this.goldLabel.setText(`${run.gold}g   potions ${run.potions}`);
-    this.ui.add(panel(this, 8, 244, 624, 110));
-    this.ui.add(text(this, 22, 252, msg || (this.mike ? 'GOBLIN MARKET  (Mike: 30% off)' : 'GOBLIN MARKET'), { size: 8, color: T.gold }));
+    const b = run.party[this.buyer];
+    this.ui.add(panel(this, 8, 234, 624, 120));
+    // who's shopping?
+    this.ui.add(text(this, 14, 218, msg || 'WHO IS BUYING? Tap a name.', { size: 8, color: T.gold, wrap: 610 }));
+    run.party.forEach((h, i) => {
+      const btn = button(this, 18 + i * 128, 242, 122, 26, `${h.name.toUpperCase()} ${h.gold}g`, () => { this.buyer = i; this.drawShop(); }, {
+        size: 8, selected: i === this.buyer,
+      });
+      this.ui.add(btn);
+    });
     this.stock.forEach((id, i) => {
-      const it = ITEMS[id];
-      const x = 18 + i * 124;
+      const card = id === 'card';
+      const name = card ? 'Dirty Card' : ITEMS[id].name;
+      const icon = card ? 'icon_card' : ITEMS[id].icon;
+      const x = 18 + i * 128;
       const sold = this.sold.includes(i);
       const p = this.price(id);
-      const b = button(this, x, 268, 118, 78, '', () => this.buy(i), { size: 8 });
-      b.setEnabled(!sold && run.gold >= p);
-      const icon = this.add.image(x + 59, 288, it.icon);
-      fitHeight(icon, 22);
-      this.ui.add([b, icon,
-        text(this, x + 59, 304, sold ? 'SOLD' : it.name, { size: 8, ox: 0.5, align: 'center', wrap: 112, color: T.cream }),
-        text(this, x + 59, 326, sold ? '' : `${p}g`, { size: 8, ox: 0.5, color: this.mike ? T.green : T.gold }),
+      const btn = button(this, x, 274, 122, 72, '', () => this.buy(i), { size: 8 });
+      btn.setEnabled(!sold && b.gold >= p);
+      const ic = this.add.image(x + 61, 290, icon);
+      fitHeight(ic, 20);
+      this.ui.add([btn, ic,
+        text(this, x + 61, 306, sold ? 'SOLD' : name, { size: 8, ox: 0.5, align: 'center', wrap: 116 }),
+        text(this, x + 61, 328, sold ? '' : `${p}g`, { size: 8, ox: 0.5, color: b.race === 'mike' ? T.green : T.gold }),
       ]);
     });
-    this.ui.add(button(this, 516, 268, 108, 78, 'LEAVE', () => fadeTo(this, 'Map'), { size: 10, fill: 0x6a2a3a }));
+    this.ui.add(button(this, 530, 242, 92, 104, 'LEAVE', () => fadeTo(this, 'Map'), { size: 10, fill: 0x6a2a3a }));
   }
 
   buy(i) {
     const id = this.stock[i];
+    const b = run.party[this.buyer];
+    if (id === 'card') {
+      b.gold -= this.price(id);
+      this.sold.push(i);
+      const c = giveCard(this.buyer);
+      sfx('coin');
+      this.drawShop(`${b.name} bought a dirty card: ${CARDS[c].name}. Use it from the map.`);
+      return;
+    }
     const it = ITEMS[id];
     if (it.consumable) {
-      run.gold -= this.price(id);
+      b.gold -= this.price(id);
       run.potions++;
       this.sold.push(i);
       sfx('coin');
-      this.drawShop(`Bought a ${it.name}.`);
+      this.drawShop(`${b.name} bought a ${it.name} for the party. How generous.`);
       return;
     }
-    // Pick which hero gets it.
+    // Pick which hero gets it (yes, you can buy stuff for friends. Nobody will.)
     this.ui.removeAll(true);
-    this.ui.add(panel(this, 8, 244, 624, 110));
-    this.ui.add(text(this, 22, 256, `${it.name}: ${it.desc}`, { size: 8, wrap: 596 }));
-    this.ui.add(text(this, 22, 290, 'TAP A HERO TO GIVE IT TO', { size: 12, color: T.gold }));
-    this.ui.add(button(this, 516, 300, 108, 44, 'BACK', () => { this.clearPick(); this.drawShop(); }, { size: 10 }));
+    this.ui.add(panel(this, 8, 234, 624, 120));
+    this.ui.add(text(this, 22, 246, `${it.name}: ${it.desc}`, { size: 8, wrap: 596 }));
+    this.ui.add(text(this, 22, 276, `${b.name.toUpperCase()}: TAP WHO GETS IT`, { size: 12, color: RACES[b.race].color }));
+    this.ui.add(button(this, 516, 290, 108, 44, 'BACK', () => { this.clearPick(); this.drawShop(); }, { size: 10 }));
     this.party.heroes.forEach((a) => {
       const z = this.add.zone(a.x, a.y - 40, 50, 84).setInteractive({ useHandCursor: true }).setDepth(700);
       z.on('pointerup', () => { this.clearPick(); this.give(i, a.hero, a); });
@@ -88,7 +113,8 @@ export class ShopScene extends Phaser.Scene {
   give(i, h, a) {
     const id = this.stock[i];
     const it = ITEMS[id];
-    run.gold -= this.price(id);
+    const buyer = run.party[this.buyer];
+    buyer.gold -= this.price(id);
     this.sold.push(i);
     sfx('coin');
     let msg;
@@ -102,6 +128,7 @@ export class ShopScene extends Phaser.Scene {
       msg = `${h.name} gets ${it.name}: +${e[stat]} ${stat.toUpperCase()}.`;
       floater(this, a.x, a.y - 80, `+${e[stat]} ${stat.toUpperCase()}`, T.green);
     }
+    if (h !== buyer) msg = `${buyer.name} buys it for ${h.name}?! ` + msg;
     this.drawShop(msg);
   }
 }

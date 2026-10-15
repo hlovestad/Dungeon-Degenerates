@@ -6,7 +6,7 @@ import { T, C, SPRITE_HEIGHT } from '../config.js';
 import { TRIVIA } from '../data/trivia.js';
 import { text, panel, button, bubble, floater, fadeTo, fadeIn } from '../ui/ui.js';
 import { background, actor, spawnParty } from '../ui/stage.js';
-import { run, rng, addGold } from '../systems/state.js';
+import { run, rng, addGold, steal } from '../systems/state.js';
 import { SCENE_SLOTS } from '../scenes/Event.js';
 import { sfx } from '../audio/sfx.js';
 
@@ -48,7 +48,10 @@ export class TriviaScene extends Phaser.Scene {
     this.answered = false;
 
     this.ui.add(panel(this, 60, 28, 520, 64));
-    this.ui.add(text(this, 76, 36, `QUESTION ${this.round + 1} OF ${ROUNDS}`, { size: 8, color: T.grey }));
+    // Each question goes to a different friend (starting with whoever picked the room).
+    this.answerer = this.crawl ? ((run.roomLeader ?? 0) + this.round) % run.party.length : null;
+    const who = this.answerer !== null ? `  -  ${run.party[this.answerer].name.toUpperCase()} ANSWERS` : '';
+    this.ui.add(text(this, 76, 36, `QUESTION ${this.round + 1} OF ${ROUNDS}${who}`, { size: 8, color: this.answerer !== null ? T.gold : T.grey }));
     this.ui.add(text(this, 76, 52, item.q, { size: 8, wrap: 490, lineSpacing: 5 }));
     // timer bar
     const tg = this.add.graphics();
@@ -74,15 +77,20 @@ export class TriviaScene extends Phaser.Scene {
       this.ui.add(b);
       return b;
     });
-    if (this.josh && !this.eyeUsed) {
-      const eye = button(this, 14, 300, 116, 52, 'THIRD EYE', () => {
+    // Josh's third eye: free when Josh answers, otherwise Josh charges a 10g fee.
+    const joshSeat = this.josh ? run.party.indexOf(this.josh) : -1;
+    const isJosh = this.answerer === joshSeat;
+    const canPay = this.answerer !== null && run.party[this.answerer].gold >= 10;
+    if (this.josh && !this.eyeUsed && (isJosh || canPay)) {
+      const eye = button(this, 14, 300, 116, 52, isJosh ? 'THIRD EYE' : 'ASK JOSH', () => {
         this.eyeUsed = true;
         eye.setEnabled(false);
         sfx('magic');
+        if (!isJosh) steal(this.answerer, joshSeat, 10);
         this.btns.filter((b) => b.answer !== correct).slice(0, 2).forEach((b) => b.setEnabled(false));
         const j = run.party.findIndex((h) => h.race === 'josh');
         bubble(this, this.party.heroes[j].x, 150, 'My third eye says... not those two.', 1600);
-      }, { size: 8, fill: 0x2a3a6a, sub: 'Josh kills 2 wrong answers' });
+      }, { size: 8, fill: 0x2a3a6a, sub: isJosh ? 'Kill 2 wrong answers' : 'Pay Josh 10g, kill 2 wrong' });
       this.ui.add(eye);
     }
   }
@@ -99,7 +107,7 @@ export class TriviaScene extends Phaser.Scene {
     if (right) {
       this.score++;
       sfx('jackpot');
-      if (this.crawl) { addGold(15); this.goldWon += 15; floater(this, 320, 230, '+15g', T.gold, 12); }
+      if (this.crawl) { addGold(this.answerer, 20); this.goldWon += 20; floater(this, 320, 230, `+20g ${run.party[this.answerer].name}`, T.gold, 12); }
       bubble(this, 540, 150, rng.pick(RIGHT), 1300);
       this.tweens.add({ targets: this.host.sprite, angle: 10, duration: 80, yoyo: true, repeat: 3 });
     } else {
@@ -107,12 +115,13 @@ export class TriviaScene extends Phaser.Scene {
       this.cameras.main.shake(200, 0.006);
       bubble(this, 540, 150, answer === null ? "Time's up! ZAP!" : rng.pick(WRONG), 1300);
       if (this.crawl) {
-        run.party.forEach((h) => { if (h.hp > 0) h.hp = Math.max(1, h.hp - 3); });
-        this.party.heroes.forEach((a) => {
-          a.sprite.setTintFill(0x9af0ff);
-          this.time.delayedCall(120, () => a.sprite.clearTint());
-        });
-        floater(this, 160, 150, 'ZAP! -3 HP each', T.blue, 10);
+        const h = run.party[this.answerer];
+        h.hp = Math.max(1, h.hp - 5);
+        const lost = Math.min(h.gold, 5); h.gold -= lost;
+        const a = this.party.heroes[this.answerer];
+        a.sprite.setTintFill(0x9af0ff);
+        this.time.delayedCall(160, () => a.sprite.clearTint());
+        floater(this, a.x, 140, `ZAP! -5 HP -${lost}g`, T.blue, 10);
       }
     }
     this.time.delayedCall(1500, () => {
@@ -128,7 +137,7 @@ export class TriviaScene extends Phaser.Scene {
     const verdict = this.score === 3 ? 'GENIUSES. Suspicious.' : this.score === 0 ? 'Zero. A new record.' : this.score === 1 ? 'One. Better than nothing.' : 'Two. Not bad, idiots.';
     this.ui.add(text(this, 320, 124, `${this.score} / ${ROUNDS} CORRECT`, { size: 16, ox: 0.5, color: T.gold }));
     this.ui.add(text(this, 320, 152, verdict, { size: 8, ox: 0.5 }));
-    if (this.crawl) this.ui.add(text(this, 320, 170, `Gold won: ${this.goldWon}`, { size: 8, ox: 0.5, color: T.gold }));
+    if (this.crawl) this.ui.add(text(this, 320, 170, `Gold handed out: ${this.goldWon}`, { size: 8, ox: 0.5, color: T.gold }));
     if (this.mode === 'arcade') {
       this.ui.add(button(this, 160, 196, 150, 36, 'PLAY AGAIN', () => this.scene.restart({ mode: 'arcade', returnTo: this.returnTo }), { size: 8, fill: 0x2a5a3a }));
       this.ui.add(button(this, 330, 196, 150, 36, 'BACK', () => fadeTo(this, this.returnTo), { size: 8 }));

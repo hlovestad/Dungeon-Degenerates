@@ -1,6 +1,7 @@
 import { T, C } from '../config.js';
-import { text, panel, hpBar, fadeTo, fadeIn, bubble, iconButton } from '../ui/ui.js';
-import { run, rng, nodeById, hasRace } from '../systems/state.js';
+import { text, panel, hpBar, fadeTo, fadeIn, bubble, iconButton, button, dimmer, floater } from '../ui/ui.js';
+import { run, rng, nodeById, hasRace, leader, nextLeader } from '../systems/state.js';
+import { CARDS, playCard } from '../systems/cards.js';
 import { FORMATIONS, FIGHT_BG } from '../data/enemies.js';
 import { RACES } from '../data/races.js';
 import { pickEvent } from './Event.js';
@@ -16,6 +17,12 @@ export class MapScene extends Phaser.Scene {
   constructor() { super('Map'); }
 
   create() {
+    // Mario Party rhythm: after (almost) every room, a showdown minigame.
+    if (run.pendingShowdown) {
+      run.pendingShowdown = false;
+      this.scene.start('Showdown');
+      return;
+    }
     fadeIn(this);
     this.add.image(0, 0, 'map_background').setOrigin(0).setDisplaySize(640, 360).setDepth(-10);
     this.moving = false;
@@ -71,36 +78,129 @@ export class MapScene extends Phaser.Scene {
 
     this.drawHud();
 
-    const hint = here.type === 'start'
-      ? 'Pick a path. Tap a glowing room.'
-      : 'Tap a glowing room to move on.';
-    const tip = text(this, 320, 344, hint, { size: 8, ox: 0.5, oy: 1, color: T.cream, depth: 30 });
-    this.tweens.add({ targets: tip, alpha: 0.5, duration: 700, yoyo: true, repeat: -1 });
+    // Whose pick is it? Rotates every room, Mario Party style.
+    const L = leader();
+    panel(this, 6, 318, 400, 36, { alpha: 0.9 }).setDepth(25);
+    const tip = text(this, 18, 336, `${L.name.toUpperCase()} PICKS THE NEXT ROOM`, { size: 10, oy: 0.5, color: RACES[L.race].color, depth: 26 });
+    this.tweens.add({ targets: tip, alpha: 0.55, duration: 600, yoyo: true, repeat: -1 });
+    const nCards = run.party.reduce((n, h) => n + h.cards.length, 0);
+    button(this, 414, 318, 220, 36, `DIRTY CARDS (${nCards})`, () => this.openCards(), { size: 10, fill: 0x6a2a3a, depth: 27 });
 
     if (josh && !run.flags.joshMapTip) {
       run.flags.joshMapTip = true;
       const j = run.party.findIndex((h) => h.race === 'josh');
-      this.time.delayedCall(500, () => bubble(this, 140 + j * 120, 92, 'My third eye sees the whole path.', 2600));
+      this.time.delayedCall(500, () => bubble(this, 84 + j * 157, 96, 'My third eye sees the whole path.', 2600));
     }
   }
 
+  // Standings across the top: HP, gold, crowns and cards for each friend.
   drawHud() {
-    panel(this, 6, 4, 628, 30, { alpha: 0.9 }).setDepth(25);
+    const w = 152;
     run.party.forEach((h, i) => {
-      const x = 14 + i * 120;
-      const s = this.add.image(x + 8, 32, poseKey(this, h.race, 'idle')).setOrigin(0.5, 1).setDepth(26);
-      fitHeight(s, 26);
+      const x = 6 + i * 157;
+      const isLeader = i === run.leader;
+      panel(this, x, 4, w, 42, { alpha: 0.92, border: isLeader ? C.gold : C.border, fill: isLeader ? 0x3b2a52 : C.panel }).setDepth(25);
+      const s = this.add.image(x + 14, 42, poseKey(this, h.race, 'idle')).setOrigin(0.5, 1).setDepth(26);
+      fitHeight(s, 34);
       if (h.hp <= 0) s.setTint(0x555555);
-      text(this, x + 22, 9, h.name, { size: 8, color: RACES[h.race].color, depth: 26 });
-      const bar = hpBar(this, 60).setPosition(x + 52, 22).setDepth(26);
+      text(this, x + 30, 9, h.name.toUpperCase(), { size: 8, color: RACES[h.race].color, depth: 26 });
+      const bar = hpBar(this, 46).setPosition(x + 125, 11).setDepth(26);
       bar.draw(h.hp, h.maxHp);
-      text(this, x + 86, 20, `${h.hp}`, { size: 8, color: T.cream, depth: 26 });
+      this.add.image(x + 36, 30, 'icon_gold_coin').setDepth(26).setScale(0.75);
+      text(this, x + 46, 25, String(h.gold), { size: 8, color: T.gold, depth: 26 });
+      this.add.image(x + 88, 30, 'icon_crown').setDepth(26).setScale(0.75);
+      text(this, x + 98, 25, String(h.crowns), { size: 8, color: T.white, depth: 26 });
+      text(this, x + 124, 25, `C${h.cards.length}`, { size: 8, color: T.purple, depth: 26 });
     });
-    this.add.image(498, 18, 'icon_gold_coin').setDepth(26);
-    text(this, 510, 13, String(run.gold), { size: 10, color: T.gold, depth: 26 });
-    this.add.image(556, 18, 'icon_potion_health').setDepth(26);
-    text(this, 568, 13, String(run.potions), { size: 10, color: T.red, depth: 26 });
-    const mute = iconButton(this, 600, 7, isMuted() ? 'x' : '♪', () => { unlockAudio(); mute.setLabel(toggleMute() ? 'x' : '♪'); }, 27);
+    const mute = iconButton(this, 600, 286, isMuted() ? 'x' : '♪', () => { unlockAudio(); mute.setLabel(toggleMute() ? 'x' : '♪'); }, 27);
+    text(this, 8, 300, `POTIONS ${run.potions}`, { size: 8, color: T.red, depth: 26 });
+  }
+
+  // ------------------------------------------------------------ dirty cards
+  openCards() {
+    sfx('select');
+    this.cardUi?.destroy();
+    const ui = this.add.container(0, 0).setDepth(900);
+    this.cardUi = ui;
+    ui.add(dimmer(this, 0.7, 0));
+    ui.add(panel(this, 20, 20, 600, 320));
+    ui.add(text(this, 320, 34, "WHO'S PLAYING A CARD?", { size: 12, ox: 0.5, color: T.gold }));
+    run.party.forEach((h, i) => {
+      const b = button(this, 36 + i * 144, 64, 136, 54, h.name.toUpperCase(), () => this.pickCard(i), {
+        size: 10, sub: h.cards.length ? `${h.cards.length} card${h.cards.length > 1 ? 's' : ''}` : 'no cards',
+      });
+      b.setEnabled(h.cards.length > 0);
+      ui.add(b);
+    });
+    ui.add(text(this, 320, 140, 'Win cards in showdowns, buy them at the Goblin Market.\nREVERSE cards work by themselves: they bounce the next card played on you.', { size: 8, ox: 0.5, align: 'center', color: T.grey, lineSpacing: 6 }));
+    ui.add(button(this, 250, 290, 140, 36, 'DONE', () => this.closeCards(), { size: 10 }));
+  }
+
+  closeCards() {
+    this.cardUi?.destroy();
+    this.cardUi = null;
+    this.scene.restart();
+  }
+
+  pickCard(i) {
+    const h = run.party[i];
+    const ui = this.cardUi;
+    ui.removeAll(true);
+    ui.add(dimmer(this, 0.7, 0));
+    ui.add(panel(this, 20, 20, 600, 320));
+    ui.add(text(this, 320, 34, `${h.name.toUpperCase()}'S HAND`, { size: 12, ox: 0.5, color: RACES[h.race].color }));
+    h.cards.forEach((cid, k) => {
+      const c = CARDS[cid];
+      const b = button(this, 40 + k * 190, 64, 180, 110, c.name, () => (c.hostile ? this.pickTarget(i, cid) : this.resolve(i, cid, i)), {
+        size: 10, fill: c.color, sub: c.desc,
+      });
+      if (c.passive) b.setEnabled(false);
+      ui.add(b);
+    });
+    ui.add(button(this, 250, 290, 140, 36, 'BACK', () => this.openCards(), { size: 10 }));
+  }
+
+  pickTarget(i, cid) {
+    const ui = this.cardUi;
+    ui.removeAll(true);
+    ui.add(dimmer(this, 0.7, 0));
+    ui.add(panel(this, 20, 20, 600, 320));
+    ui.add(text(this, 320, 34, `${CARDS[cid].name}: ON WHO?`, { size: 12, ox: 0.5, color: T.gold }));
+    run.party.forEach((t, k) => {
+      if (k === i) return;
+      const x = 60 + (k > i ? k - 1 : k) * 180;
+      const b = button(this, x, 80, 160, 90, t.name.toUpperCase(), () => this.resolve(i, cid, k), {
+        size: 12, sub: `${t.gold} gold, ${t.crowns} crown${t.crowns === 1 ? '' : 's'}`,
+      });
+      ui.add(b);
+      const s = this.add.image(x + 80, 230, poseKey(this, t.race, 'idle')).setOrigin(0.5, 1);
+      fitHeight(s, 50);
+      ui.add(s);
+    });
+    ui.add(button(this, 250, 290, 140, 36, 'BACK', () => this.pickCard(i), { size: 10 }));
+  }
+
+  async resolve(i, cid, k) {
+    const lines = playCard(i, cid, k);
+    const ui = this.cardUi;
+    ui.removeAll(true);
+    ui.add(dimmer(this, 0.75, 0));
+    sfx(cid === 'double' ? 'jackpot' : 'whip');
+    this.cameras.main.shake(200, 0.006);
+    const big = text(this, 320, 70, CARDS[cid].name, { size: 24, ox: 0.5, color: T.red, strokeThickness: 6 });
+    big.setScale(0.3);
+    this.tweens.add({ targets: big, scale: 1, duration: 260, ease: 'Back.Out' });
+    ui.add(big);
+    lines.forEach((ln, n) => {
+      const t = text(this, 320, 130 + n * 30, ln, { size: 10, ox: 0.5, align: 'center', wrap: 560, color: ln.startsWith('REVERSE') ? T.gold : T.cream });
+      t.setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, delay: 300 + n * 700, duration: 200, onStart: () => { if (ln.startsWith('REVERSE')) { sfx('crit'); this.cameras.main.flash(150, 247, 197, 72); } } });
+      ui.add(t);
+    });
+    this.time.delayedCall(400 + lines.length * 700, () => {
+      ui.add(button(this, 170, 280, 140, 40, 'MORE CARDS', () => this.openCards(), { size: 10 }));
+      ui.add(button(this, 330, 280, 140, 40, 'DONE', () => this.closeCards(), { size: 10, fill: 0x2a5a3a }));
+    });
   }
 
   travel(n) {
@@ -128,6 +228,11 @@ export class MapScene extends Phaser.Scene {
   enter(n) {
     run.at = n.id;
     run.visited.push(n.id);
+    // The friend who picked this room gets the room's rewards; next pick rotates.
+    run.roomLeader = run.leader;
+    nextLeader();
+    // Showdown minigame after every room except the casino and the boss.
+    run.pendingShowdown = !['casino', 'boss'].includes(n.type);
     const go = (key, data) => this.time.delayedCall(150, () => fadeTo(this, key, data));
     switch (n.type) {
       case 'fight':

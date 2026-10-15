@@ -164,7 +164,7 @@ export class BattleScene extends Phaser.Scene {
 
   refreshTop() {
     this.roundText.setText('ROUND ' + Math.max(1, this.b.round));
-    this.goldText.setText(run.gold + 'g');
+    this.goldText.setText('KILLS PAY THE KILLER');
   }
 
   refreshStatuses() {
@@ -344,7 +344,7 @@ export class BattleScene extends Phaser.Scene {
       }
       case 'gold': {
         const h = this.head(ev.uid);
-        floater(this, h.x, h.y - 4, (ev.amount > 0 ? '+' : '') + ev.amount + 'g', T.gold, 10);
+        floater(this, h.x, h.y - 4, (ev.label ? ev.label + ' ' : '') + (ev.amount > 0 ? '+' : '') + ev.amount + 'g', ev.amount > 0 ? T.gold : T.red, 10);
         sfx('coin');
         this.refreshTop();
         return this.wait(250);
@@ -628,13 +628,25 @@ export class BattleScene extends Phaser.Scene {
     const title = text(this, 320, 110, won ? 'VICTORY!' : 'PARTY WIPED', { size: 24, ox: 0.5, color: won ? T.gold : T.red, depth: 401, strokeThickness: 6 });
     title.setScale(0.4);
     this.tweens.add({ targets: title, scale: 1, duration: 300, ease: 'Back.Out' });
-    let sub = won ? `+${res.gold} gold` : 'The dungeon keeps your deposit.';
-    if (won && run.party.some((h) => h.hp > 0 && K.heroes(b).find((u) => u.heroIndex === run.party.indexOf(h) && !u.alive))) {
-      sub += '\nDowned heroes get back up with 25% HP.';
+    let y = 146;
+    if (won) {
+      // Damage leaderboard: bragging rights and the MVP bonus.
+      res.dmgTable.sort((a, c) => c.dmg - a.dmg).forEach((r, k) => {
+        const h = run.party[r.heroIndex];
+        const mvp = res.mvp && res.mvp.heroIndex === r.heroIndex;
+        text(this, 220, y, `${k + 1}. ${r.name}`, { size: 8, color: RACES[h.race].color, depth: 401 });
+        text(this, 340, y, `${r.dmg} dmg`, { size: 8, color: T.cream, depth: 401 });
+        text(this, 420, y, mvp ? (res.mvp.crown ? 'MVP +1 CROWN' : `MVP +${res.mvp.bonus}g`) : '', { size: 8, color: T.gold, depth: 401 });
+        y += 14;
+      });
+      if (run.party.some((h) => h.hp > 0 && K.heroes(b).find((u) => u.heroIndex === run.party.indexOf(h) && !u.alive))) {
+        text(this, 320, y + 4, 'Downed heroes get back up with 25% HP.', { size: 8, ox: 0.5, color: T.grey, depth: 401 });
+      }
+    } else {
+      text(this, 320, 150, 'The dungeon keeps your deposit.', { size: 10, ox: 0.5, color: T.cream, depth: 401 });
     }
-    text(this, 320, 150, sub, { size: 10, ox: 0.5, align: 'center', color: T.cream, depth: 401 });
     const isBoss = b.type === 'boss';
-    button(this, 230, 210, 180, 40, won && !isBoss ? 'CONTINUE' : won ? 'CLAIM VICTORY' : 'ACCEPT FATE', () => {
+    button(this, 230, 222, 180, 40, won && !isBoss ? 'CONTINUE' : won ? 'CLAIM VICTORY' : 'ACCEPT FATE', () => {
       if (!won) fadeTo(this, 'End', { won: false });
       else if (isBoss) fadeTo(this, 'End', { won: true });
       else fadeTo(this, 'Map');
