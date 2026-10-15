@@ -1,0 +1,4 @@
+{
+  "_readme": "Real art goes here. Key = texture name used by the game (e.g. haakon_idle, bg_dungeon_crypt), value = path. Anything not listed uses generated placeholder art. tools/process_art.py fills this in automatically.",
+  "images": {}
+}

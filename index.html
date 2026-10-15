@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Dungeon Degenerates</title>
+  <meta name="theme-color" content="#140c1c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Degenerates">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <style>
+    @font-face {
+      font-family: "PressStart";
+      src: url("assets/press-start-2p.woff2") format("woff2");
+      font-display: block;
+    }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background: #0b0710; overflow: hidden;
+      touch-action: none; -webkit-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #game { position: fixed; inset: 0; }
+    #game canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+    #rotate {
+      display: none; position: fixed; inset: 0; z-index: 10;
+      background: #140c1c; color: #f4e3b5; font-family: "PressStart", monospace;
+      font-size: 12px; line-height: 2; text-align: center;
+      align-items: center; justify-content: center; padding: 24px; box-sizing: border-box;
+    }
+    #rotate .phone { font-size: 40px; display: block; margin-bottom: 16px; animation: tilt 1.6s ease-in-out infinite; }
+    @keyframes tilt { 0%,30% { transform: rotate(0deg);} 60%,100% { transform: rotate(-90deg);} }
+    @media (orientation: portrait) and (max-width: 900px) {
+      #rotate { display: flex; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="rotate"><div><span class="phone">📱</span>Turn your phone sideways,<br>degenerate.</div></div>
+  <script src="lib/phaser.min.js"></script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
