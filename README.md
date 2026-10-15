@@ -4,7 +4,7 @@ A funny, short (15-25 min) party roguelike for four friends, played in a phone b
 Pixel-art heroes physically walk the dungeon, fight in staged turn-based battles,
 gamble at the Goblin Casino and get probed by aliens.
 
-**Play:** https://hlovestad.github.io/dungeon-degenerates/ (hold your phone sideways)
+**Play:** https://hlovestad.github.io/Dungeon-Degenerates/ (hold your phone sideways)
 
 ## Status: v0.1 prototype
 
