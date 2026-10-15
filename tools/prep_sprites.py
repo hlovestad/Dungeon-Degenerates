@@ -38,6 +38,7 @@ TARGET_IDLE_H = {
     'josh': 96,
     'dani': round(96 * 0.85),  # 85% of Griffin
     'goblin_grunt': 72,
+    'archie': 40,  # a small dog
 }
 DEFAULT_ENEMY_H = 72
 
@@ -55,6 +56,7 @@ SOURCE_FACES_RIGHT = set()
 SINGLE_BOX = {
     'prop_campfire': (30, 24), 'prop_chest': (28, 22), 'prop_boulder': (42, 34),
     'prop_bush': (46, 36), 'prop_mallet': (22, 28), 'prop_slots': (30, 38),
+    'prop_poop': (16, 14),
 }
 ICON_BOX = (18, 18)
 

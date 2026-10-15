@@ -1,5 +1,6 @@
 import { T, C, SPRITE_HEIGHT } from '../config.js';
 import { text, panel, button, bubble, floater, fadeTo, fadeIn, dimmer } from '../ui/ui.js';
+import { hubScene } from '../systems/arcade.js';
 import { background, actor, spawnParty } from '../ui/stage.js';
 import { run, rng } from '../systems/state.js';
 import { SCENE_SLOTS } from './Event.js';
@@ -22,8 +23,9 @@ const DEALER_LOSE = ['WHAT. Security!', 'Lucky. LUCKY.', 'Nobody wins that. NOBO
 export class CasinoScene extends Phaser.Scene {
   constructor() { super('Casino'); }
 
-  create() {
+  create(data = {}) {
     fadeIn(this);
+    this.returnTo = data.returnTo || hubScene();
     background(this, 'bg_goblin_casino');
     this.party = spawnParty(this, { slots: SCENE_SLOTS });
     this.dealer = actor(this, 'npc_goblin_dealer', 440, 214, SPRITE_HEIGHT.npc, { flip: true });
@@ -80,7 +82,7 @@ export class CasinoScene extends Phaser.Scene {
     const crown = button(this, 542, 276, 82, 70, 'BUY CROWN', () => this.buyCrown(), { size: 8, sub: `${run.crownPrice}g`, fill: 0x6a5a1a, subColor: T.gold });
     crown.setEnabled(h.gold >= run.crownPrice);
     this.ui.add(crown);
-    this.ui.add(button(this, 542, 242, 82, 26, 'LEAVE', () => fadeTo(this, 'Map'), { size: 8, fill: 0x6a2a3a }));
+    this.ui.add(button(this, 542, 242, 82, 26, 'LEAVE', () => fadeTo(this, this.returnTo), { size: 8, fill: 0x6a2a3a }));
   }
 
   buyCrown() {

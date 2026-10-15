@@ -5,6 +5,9 @@ import { CARDS, playCard } from '../systems/cards.js';
 import { FORMATIONS, FIGHT_BG } from '../data/enemies.js';
 import { RACES } from '../data/races.js';
 import { pickEvent } from './Event.js';
+import { openCardMenu } from '../ui/cardMenu.js';
+import { dungeonInterlude } from '../systems/arcade.js';
+import { playInterlude } from '../ui/interlude.js';
 import { fitHeight, poseKey, isReal } from '../art/assets.js';
 import { sfx, toggleMute, isMuted, unlockAudio } from '../audio/sfx.js';
 
@@ -90,6 +93,18 @@ export class MapScene extends Phaser.Scene {
       run.flags.joshMapTip = true;
       const j = run.party.findIndex((h) => h.race === 'josh');
       this.time.delayedCall(500, () => bubble(this, 84 + j * 157, 96, 'My third eye sees the whole path.', 2600));
+    } else if (run.visited.length > 1 && run.interludeAt !== run.at) {
+      run.interludeAt = run.at;
+      const items = dungeonInterlude();
+      if (items.length) {
+        this.moving = true; // no travelling mid-joke
+        const hudSpot = (i) => ({ x: 84 + i * 157, y: 96 });
+        const gold = items.some((x) => x.type === 'event' && x.changes?.length);
+        this.time.delayedCall(600, async () => {
+          await playInterlude(this, items, { anchorOf: hudSpot, actors: [] });
+          if (gold) this.scene.restart(); else this.moving = false;
+        });
+      }
     }
   }
 
@@ -120,89 +135,7 @@ export class MapScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ dirty cards
   openCards() {
-    sfx('select');
-    this.cardUi?.destroy();
-    const ui = this.add.container(0, 0).setDepth(900);
-    this.cardUi = ui;
-    ui.add(dimmer(this, 0.7, 0));
-    ui.add(panel(this, 20, 20, 600, 320));
-    ui.add(text(this, 320, 34, "WHO'S PLAYING A CARD?", { size: 12, ox: 0.5, color: T.gold }));
-    run.party.forEach((h, i) => {
-      const b = button(this, 36 + i * 144, 64, 136, 54, h.name.toUpperCase(), () => this.pickCard(i), {
-        size: 10, sub: h.cards.length ? `${h.cards.length} card${h.cards.length > 1 ? 's' : ''}` : 'no cards',
-      });
-      b.setEnabled(h.cards.length > 0);
-      ui.add(b);
-    });
-    ui.add(text(this, 320, 140, 'Win cards in showdowns, buy them at the Goblin Market.\nREVERSE cards work by themselves: they bounce the next card played on you.', { size: 8, ox: 0.5, align: 'center', color: T.grey, lineSpacing: 6 }));
-    ui.add(button(this, 250, 290, 140, 36, 'DONE', () => this.closeCards(), { size: 10 }));
-  }
-
-  closeCards() {
-    this.cardUi?.destroy();
-    this.cardUi = null;
-    this.scene.restart();
-  }
-
-  pickCard(i) {
-    const h = run.party[i];
-    const ui = this.cardUi;
-    ui.removeAll(true);
-    ui.add(dimmer(this, 0.7, 0));
-    ui.add(panel(this, 20, 20, 600, 320));
-    ui.add(text(this, 320, 34, `${h.name.toUpperCase()}'S HAND`, { size: 12, ox: 0.5, color: RACES[h.race].color }));
-    h.cards.forEach((cid, k) => {
-      const c = CARDS[cid];
-      const b = button(this, 40 + k * 190, 64, 180, 110, c.name, () => (c.hostile ? this.pickTarget(i, cid) : this.resolve(i, cid, i)), {
-        size: 10, fill: c.color, sub: c.desc,
-      });
-      if (c.passive) b.setEnabled(false);
-      ui.add(b);
-    });
-    ui.add(button(this, 250, 290, 140, 36, 'BACK', () => this.openCards(), { size: 10 }));
-  }
-
-  pickTarget(i, cid) {
-    const ui = this.cardUi;
-    ui.removeAll(true);
-    ui.add(dimmer(this, 0.7, 0));
-    ui.add(panel(this, 20, 20, 600, 320));
-    ui.add(text(this, 320, 34, `${CARDS[cid].name}: ON WHO?`, { size: 12, ox: 0.5, color: T.gold }));
-    run.party.forEach((t, k) => {
-      if (k === i) return;
-      const x = 60 + (k > i ? k - 1 : k) * 180;
-      const b = button(this, x, 80, 160, 90, t.name.toUpperCase(), () => this.resolve(i, cid, k), {
-        size: 12, sub: `${t.gold} gold, ${t.crowns} crown${t.crowns === 1 ? '' : 's'}`,
-      });
-      ui.add(b);
-      const s = this.add.image(x + 80, 230, poseKey(this, t.race, 'idle')).setOrigin(0.5, 1);
-      fitHeight(s, 50);
-      ui.add(s);
-    });
-    ui.add(button(this, 250, 290, 140, 36, 'BACK', () => this.pickCard(i), { size: 10 }));
-  }
-
-  async resolve(i, cid, k) {
-    const lines = playCard(i, cid, k);
-    const ui = this.cardUi;
-    ui.removeAll(true);
-    ui.add(dimmer(this, 0.75, 0));
-    sfx(cid === 'double' ? 'jackpot' : 'whip');
-    this.cameras.main.shake(200, 0.006);
-    const big = text(this, 320, 70, CARDS[cid].name, { size: 24, ox: 0.5, color: T.red, strokeThickness: 6 });
-    big.setScale(0.3);
-    this.tweens.add({ targets: big, scale: 1, duration: 260, ease: 'Back.Out' });
-    ui.add(big);
-    lines.forEach((ln, n) => {
-      const t = text(this, 320, 130 + n * 30, ln, { size: 10, ox: 0.5, align: 'center', wrap: 560, color: ln.startsWith('REVERSE') ? T.gold : T.cream });
-      t.setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, delay: 300 + n * 700, duration: 200, onStart: () => { if (ln.startsWith('REVERSE')) { sfx('crit'); this.cameras.main.flash(150, 247, 197, 72); } } });
-      ui.add(t);
-    });
-    this.time.delayedCall(400 + lines.length * 700, () => {
-      ui.add(button(this, 170, 280, 140, 40, 'MORE CARDS', () => this.openCards(), { size: 10 }));
-      ui.add(button(this, 330, 280, 140, 40, 'DONE', () => this.closeCards(), { size: 10, fill: 0x2a5a3a }));
-    });
+    openCardMenu(this, () => this.scene.restart());
   }
 
   travel(n) {

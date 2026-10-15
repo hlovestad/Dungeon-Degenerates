@@ -36,6 +36,11 @@ export class BootScene extends Phaser.Scene {
       this.scene.start('Battle', { type: 'fight', enemies: ['goblin_grunt', 'goblin_grunt'], bg: 'bg_dungeon_crypt', depth: 1, test: true, intro: 'ART TEST: two goblins, one crypt.' });
       return;
     }
+    if (new URLSearchParams(location.search).get('test') === 'arcade') {
+      label.destroy();
+      this.scene.start('Arcade', { fresh: true });
+      return;
+    }
     label.destroy();
     this.scene.start('Title');
   }

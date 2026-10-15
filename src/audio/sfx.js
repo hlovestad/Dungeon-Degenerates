@@ -65,6 +65,8 @@ const SOUNDS = {
   jackpot: () => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ from: f, dur: 0.14, vol: 0.09, delay: i * 0.08 })); },
   lose: () => { [392, 330, 262, 196].forEach((f, i) => tone({ type: 'triangle', from: f, dur: 0.25, vol: 0.1, delay: i * 0.2 })); },
   win: () => { [523, 659, 784, 659, 1047].forEach((f, i) => tone({ type: 'square', from: f, dur: 0.14, vol: 0.07, delay: i * 0.11 })); },
+  bark: () => { tone({ type: 'square', from: 520, to: 260, dur: 0.09, vol: 0.12 }); tone({ type: 'square', from: 560, to: 280, dur: 0.09, vol: 0.12, delay: 0.14 }); },
+  splat: () => { tone({ noise: true, from: 500, dur: 0.1, vol: 0.18 }); tone({ type: 'triangle', from: 180, to: 70, dur: 0.12, vol: 0.1 }); },
   dice: () => { for (let i = 0; i < 5; i++) tone({ noise: true, from: 3000, dur: 0.03, vol: 0.1, delay: i * 0.06 }); },
 };
 

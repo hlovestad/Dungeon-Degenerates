@@ -3,6 +3,7 @@
 import { T, C } from '../config.js';
 import { RACES } from '../data/races.js';
 import { text, panel, button, floater, fadeTo, fadeIn } from '../ui/ui.js';
+import { hubScene } from '../systems/arcade.js';
 import { background, spawnParty } from '../ui/stage.js';
 import { run, rng, steal, addGold, giveCard } from '../systems/state.js';
 import { CARDS } from '../systems/cards.js';
@@ -24,8 +25,9 @@ const SLICES = [
 export class WheelScene extends Phaser.Scene {
   constructor() { super('Wheel'); }
 
-  create() {
+  create(data = {}) {
     fadeIn(this);
+    this.returnTo = data.returnTo || hubScene();
     background(this, 'bg_trivia_stage');
     this.party = spawnParty(this, { slots: SCENE_SLOTS.map((s) => ({ x: s.x - 10, y: s.y + 26 })) });
     this.spinner = run.roomLeader ?? 0;
@@ -100,7 +102,7 @@ export class WheelScene extends Phaser.Scene {
     this.ui.add(panel(this, 8, 222, 624, 132));
     lines.forEach((ln, k) => this.ui.add(text(this, 22, 236 + k * 18, ln, { size: 8, wrap: 596 })));
     sfx(sl.id === 'jackpot' || sl.id === 'gift' ? 'jackpot' : 'whip');
-    this.ui.add(button(this, 245, 306, 150, 40, 'CONTINUE', () => fadeTo(this, 'Map'), { size: 10, fill: 0x2a5a3a }));
+    this.ui.add(button(this, 245, 306, 150, 40, 'CONTINUE', () => fadeTo(this, this.returnTo), { size: 10, fill: 0x2a5a3a }));
   }
 
   // Spinning name slot that lands on a random friend (not `not`).

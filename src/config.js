@@ -1,5 +1,5 @@
 // Global constants shared by every scene.
-export const VERSION = '0.3.3';
+export const VERSION = '0.4.0';
 
 // Internal resolution. Everything is drawn at this size and scaled up to the
 // screen with nearest-neighbour filtering, so pixel art stays crisp.

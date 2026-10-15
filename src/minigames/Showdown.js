@@ -8,6 +8,7 @@ import { text, panel, button, bubble, floater, fadeTo, fadeIn, drawPanel } from 
 import { background } from '../ui/stage.js';
 import { run, rng, addGold, steal, giveCard } from '../systems/state.js';
 import { CARDS } from '../systems/cards.js';
+import { hubScene } from '../systems/arcade.js';
 import { sfx } from '../audio/sfx.js';
 import { fitHeight, poseKey } from '../art/assets.js';
 
@@ -36,6 +37,7 @@ export class ShowdownScene extends Phaser.Scene {
     fadeIn(this);
     background(this, 'bg_title').setAlpha(0.45);
     this.add.rectangle(320, 180, 640, 360, C.ink, 0.55).setDepth(-5);
+    this.returnTo = data.returnTo || hubScene();
     let id = data.game;
     if (!id) {
       const pool = IDS.filter((g) => g !== run.lastShowdown);
@@ -76,7 +78,7 @@ export class ShowdownScene extends Phaser.Scene {
     if (this.players.length < 2) {
       L.removeAll(true);
       L.add(text(this, 320, 160, 'Not enough players. The showdown is cancelled.', { size: 10, ox: 0.5 }));
-      L.add(button(this, 245, 200, 150, 40, 'CONTINUE', () => fadeTo(this, 'Map'), { size: 10 }));
+      L.add(button(this, 245, 200, 150, 40, 'CONTINUE', () => fadeTo(this, this.returnTo), { size: 10 }));
     }
   }
 
@@ -672,6 +674,6 @@ export class ShowdownScene extends Phaser.Scene {
       this.layer.add(text(this, 320, 252, `${this.name(winner)} wins a dirty card: ${CARDS[card].name}`, { size: 8, ox: 0.5, color: T.purple }));
       sfx('win');
     }
-    this.layer.add(button(this, 245, 270, 150, 40, 'CONTINUE', () => fadeTo(this, 'Map'), { size: 10, fill: 0x2a5a3a }));
+    this.layer.add(button(this, 245, 270, 150, 40, 'CONTINUE', () => fadeTo(this, this.returnTo), { size: 10, fill: 0x2a5a3a }));
   }
 }

@@ -9,6 +9,8 @@ import { text, panel, button, floater, bubble, hpBar, fadeTo, fadeIn, dimmer } f
 import { background, actor, spawnDani } from '../ui/stage.js';
 import { run, rng } from '../systems/state.js';
 import * as K from '../systems/combat.js';
+import { pickChaos, say } from '../systems/arcade.js';
+import { playChaos } from '../ui/chaos.js';
 import { sfx } from '../audio/sfx.js';
 
 const DANI_LINES = {
@@ -128,6 +130,7 @@ export class BattleScene extends Phaser.Scene {
     const b = this.b;
     while (!b.over) {
       const u = K.current(b);
+      if (b.round !== this.seenRound) { this.seenRound = b.round; await this.roundInterlude(); }
       this.refreshTop();
       if (u && u.alive) {
         this.pointAt(u.uid);
@@ -158,6 +161,27 @@ export class BattleScene extends Phaser.Scene {
     }
     this.arrow.setVisible(false);
     this.finish();
+  }
+
+  // Battles get the same quips and chaos as the arcade, just less often.
+  async roundInterlude() {
+    if (this.b.round < 2 || this.data_.test || this.b.over) return;
+    const heroes = Object.values(this.views).filter((v) => v.u.side === 'hero');
+    const alive = heroes.filter((v) => v.u.alive && !v.u.st.bush);
+    if (rng.chance(0.07)) {
+      const all = Object.values(this.views).filter((v) => v.u.alive).map((v) => v.a);
+      await playChaos(this, pickChaos(), { actors: [...all, this.dani].filter(Boolean) });
+      Object.values(this.views).forEach((v) => this.placeBar(v));
+    } else if (alive.length && rng.chance(0.12)) {
+      const v = rng.pick(alive);
+      const i = run.party.findIndex((h) => h.race === v.u.race);
+      if (i >= 0) {
+        const line = say(i, rng.chance(0.4) ? 'afk' : 'idle');
+        const h = this.head(v.u.uid);
+        bubble(this, h.x, h.y - 4, line, 2400);
+        await this.wait(1600);
+      }
+    }
   }
 
   pointAt(uid) {

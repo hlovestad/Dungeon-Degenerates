@@ -547,3 +547,32 @@ export function drawSlotMachine() {
   p.v(25, 10, 20, '#b8c0cc'); p.ell(25, 8, 2, 2, '#d9473c');
   return p.finish();
 }
+
+// Archie: a small, furious dog. Faces right like every other sprite.
+export function drawArchie() {
+  const p = painter(30, 22);
+  const f = '#c08a52', fd = '#8a5a32', w = '#f4e8d0';
+  p.r(2, 6, 3, 2, fd); p.r(1, 4, 2, 3, fd); // tail up
+  p.ell(13, 11, 8, 5, f);
+  p.r(9, 12, 8, 3, w); // white belly
+  p.r(7, 14, 3, 6, fd); p.r(11, 14, 3, 6, f); p.r(16, 14, 3, 6, fd); p.r(20, 14, 3, 6, f);
+  // head
+  p.r(19, 3, 7, 8, f); p.r(25, 6, 4, 4, f); p.r(25, 9, 4, 1, fd);
+  p.px(28, 6, '#1a1020'); // nose
+  p.px(22, 5, '#1a1020'); p.px(21, 4, '#d9473c'); p.px(23, 4, '#d9473c'); // angry eye + brow
+  p.r(19, 0, 2, 4, fd); p.r(23, 1, 2, 3, fd); // ears
+  p.px(26, 10, w); p.px(28, 10, w); // fangs
+  return p.finish();
+}
+
+// One cartoon poop. Swirly, shiny, harmless.
+export function drawPoop() {
+  const p = painter(14, 12);
+  const b = '#7a4a22', bd = '#5a3216', bl = '#a06a3a';
+  p.r(2, 8, 10, 3, b); p.h(10, 2, 11, bd);
+  p.r(3, 5, 8, 3, b); p.h(7, 3, 10, bd);
+  p.r(5, 2, 4, 3, b); p.px(7, 1, b); p.px(8, 0, b);
+  p.px(4, 9, bl); p.px(5, 6, bl); p.px(6, 3, bl);
+  p.px(5, 9, '#fff6e0'); p.px(8, 9, '#fff6e0'); p.px(5, 8, '#1a1020'); p.px(8, 8, '#1a1020');
+  return p.finish();
+}

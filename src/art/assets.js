@@ -36,6 +36,8 @@ const PLACEHOLDERS = {
   prop_mallet: () => Art.drawMallet(),
   npc_trivia_skull_idle: () => Art.drawSkullHost(),
   prop_slots: () => Art.drawSlotMachine(),
+  archie_idle: () => Art.drawArchie(),
+  prop_poop: () => Art.drawPoop(),
   map_background: () => drawMapBackground(),
 };
 ICON_KEYS.forEach((k) => { PLACEHOLDERS[k] = () => drawIcon(k); });
