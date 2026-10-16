@@ -24,17 +24,22 @@ export class TitleScene extends Phaser.Scene {
     });
     actor(this, 'dani', 512, 250, SPRITE_HEIGHT.companion, { float: 14, depth: 240 });
 
-    const start = button(this, 126, 292, 180, 40, 'DUNGEON', () => {
+    const start = button(this, 70, 292, 160, 40, 'DUNGEON', () => {
       unlockAudio();
       sfx('win');
       fadeTo(this, 'Party');
     }, { size: 12, fill: 0x6a2a3a, depth: 300 });
-    const arcade = button(this, 334, 292, 180, 40, 'ARCADE', () => {
+    const arcade = button(this, 240, 292, 160, 40, 'ARCADE', () => {
       unlockAudio();
       sfx('jackpot');
       fadeTo(this, 'Arcade', { fresh: true });
     }, { size: 12, fill: 0x2a3a6a, depth: 300 });
-    this.tweens.add({ targets: [start, arcade], alpha: 0.8, duration: 500, yoyo: true, repeat: -1, ease: 'Stepped' });
+    const online = button(this, 410, 292, 160, 40, 'ONLINE', () => {
+      unlockAudio();
+      sfx('coin');
+      fadeTo(this, 'Lobby');
+    }, { size: 12, fill: 0x2a5a3a, depth: 300 });
+    this.tweens.add({ targets: [start, arcade, online], alpha: 0.8, duration: 500, yoyo: true, repeat: -1, ease: 'Stepped' });
 
     const flash = button(this, 470, 340, 164, 18, `REDUCE FLASHING: ${reduceFlashing() ? 'ON' : 'OFF'}`, () => {
       flash.setLabel(`REDUCE FLASHING: ${toggleReduceFlashing() ? 'ON' : 'OFF'}`);

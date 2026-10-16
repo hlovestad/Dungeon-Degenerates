@@ -4,6 +4,13 @@
 // Everyone is a portrait (arcade rule: no full bodies). You are seat `me`,
 // your hand is along the bottom, the other three sit across the top.
 // Everyone antes 10 gold; the winner takes the pot.
+//
+// Three modes:
+//   local  - you + bots on this phone
+//   host   - online, this phone runs the rules, the bots and the clocks, and
+//            broadcasts every move (events + state) to the room
+//   client - online, this phone just draws what the host sends and sends the
+//            host your taps. It never applies rules itself.
 import { T, C } from '../config.js';
 import { text, panel, button, fadeTo, fadeIn, dimmer, bubble } from '../ui/ui.js';
 import { background, portraitActor, spawnDaniPortrait } from '../ui/stage.js';
@@ -30,7 +37,16 @@ export class StackScene extends Phaser.Scene {
     window.__stack = this;
     this.returnTo = data.returnTo || hubScene();
     this.auto = !!data.auto; // test mode: a bot plays your seat too
-    this.me = data.me ?? run.me ?? 0;
+    this.net = data.net || null;
+    this.role = !this.net ? 'local' : this.net.isHost ? 'host' : 'client';
+    this.me = this.net ? this.net.mySeat() : (data.me ?? run.me ?? 0);
+    this.spectator = this.me < 0;
+    if (this.spectator) this.me = 0;
+    this.seq = 0;
+    this.queue = [];
+    this.finished = false;
+    this.offs = [];
+    this.events.once('shutdown', () => { this.offs.forEach((f) => f()); if (this.net?.isHost) this.net.snapshot = null; });
     background(this, 'bg_goblin_casino');
     this.add.rectangle(320, 180, 640, 360, C.ink, 0.35).setDepth(-5);
     // the table
@@ -39,10 +55,19 @@ export class StackScene extends Phaser.Scene {
     t.lineStyle(3, 0x5a3a22, 1).strokeRoundedRect(150, 122, 340, 96, 14);
 
     const seats = run.party.map((_, i) => i);
-    this.st = S.newGame(seats, rng);
-    // the pot
-    this.pot = 0;
-    seats.forEach((s) => { this.pot += -addGold(s, -ANTE); });
+    if (this.role === 'client') {
+      // the host already dealt: take its state
+      const m = data.init;
+      this.st = m.st;
+      this.pot = m.pot;
+      this.seq = m.seq || 0;
+      this.setGold(m.gold);
+    } else {
+      this.st = S.newGame(seats, rng);
+      // the pot
+      this.pot = 0;
+      seats.forEach((s) => { this.pot += -addGold(s, -ANTE); });
+    }
 
     // portraits: opponents in turn order after you, left to right
     const order = [];
@@ -75,7 +100,124 @@ export class StackScene extends Phaser.Scene {
     this.ring = this.add.graphics().setDepth(19);
 
     this.render();
-    this.time.delayedCall(500, () => this.loop());
+    this.netSetup();
+    this.time.delayedCall(500, () => (this.role === 'client' ? this.clientPrompt() : this.loop()));
+  }
+
+  // ------------------------------------------------------------------ network
+  netSetup() {
+    const n = this.net;
+    if (!n) return;
+    this.offs.push(n.on('lost', (e) => this.lost(e.reason)));
+    if (this.role === 'host') {
+      n.setGame('stack');
+      n.snapshot = () => this.packet([]);
+      n.send({ ...this.packet([]), t: 'start' });
+      this.offs.push(n.on('act', (m) => {
+        if (this.remoteWait && m.seat === this.remoteWait.seat) this.remoteWait.done(m.action);
+      }));
+      this.offs.push(n.on('last', (m) => {
+        if (this.lastWait && m.seat === this.lastWait.seat) this.lastWait.done();
+      }));
+    } else {
+      this.offs.push(n.on('ev', (m) => this.receive(m)));
+      this.offs.push(n.on('snap', (m) => { this.seq = m.seq; this.st = m.st; this.pot = m.pot; this.setGold(m.gold); this.render(); this.clientPrompt(); }));
+      this.offs.push(n.on('start', (m) => this.scene.restart({ net: n, init: m, returnTo: this.returnTo })));
+      this.offs.push(n.on('tolobby', () => this.scene.start('Lobby')));
+      this.offs.push(n.on('lobby', () => { const me = n.mySeat(); if (me >= 0 && me !== this.me && !this.spectator) this.me = me; }));
+    }
+  }
+
+  packet(ev) {
+    return { t: 'ev', seq: this.seq, ev, st: JSON.parse(JSON.stringify(this.st)), pot: this.pot, gold: run.party.map((h) => h.gold) };
+  }
+
+  // host: tell everyone what just happened
+  broadcast(ev) {
+    if (this.role !== 'host') return;
+    this.seq++;
+    this.net.send(this.packet(ev));
+  }
+
+  setGold(gold) { if (gold) gold.forEach((g, i) => { if (run.party[i]) run.party[i].gold = g; }); }
+
+  // who drives a seat: 'me' (this phone), 'remote' (a friend's phone), 'bot'
+  ctl(seat) {
+    if (seat === this.me && !this.spectator) return this.auto ? 'bot' : 'me';
+    if (this.role === 'host' && this.net.seats[seat]) return 'remote';
+    return 'bot';
+  }
+
+  // client: play the host's packets one at a time, in order
+  receive(m) {
+    if (m.seq <= this.seq) return;
+    this.queue.push(m);
+    if (!this.draining) this.drain();
+  }
+
+  async drain() {
+    this.draining = true;
+    while (this.queue.length) {
+      const m = this.queue.shift();
+      if (m.seq !== this.seq + 1) {
+        // missed something: ask for a fresh snapshot
+        this.queue = [];
+        this.net.send({ t: 'hello' });
+        break;
+      }
+      this.seq = m.seq;
+      this.awaiting = null;
+      this.btnLayer.removeAll(true);
+      this.overlay?.destroy();
+      this.st = m.st;
+      this.pot = m.pot;
+      this.setGold(m.gold);
+      await this.animate(m.ev);
+      this.render();
+    }
+    this.draining = false;
+    this.clientPrompt();
+  }
+
+  clientPrompt() {
+    const st = this.st;
+    if (this.draining) return;
+    if (st.winner !== null) { this.finish(); return; }
+    this.render();
+    const seat = S.current(st);
+    if (seat === this.me && !this.spectator) {
+      this.humanAction().then((action) => {
+        this.setInfo('...', T.grey);
+        this.net.send({ t: 'act', seat: this.me, action });
+      });
+    } else {
+      this.setInfo(st.pending ? `${this.name(seat).toUpperCase()} IS STARING AT +${st.pending.amount}...` : `${this.name(seat).toUpperCase()}'S TURN`, RACES[this.race(seat)].color);
+    }
+  }
+
+  // host: wait for a friend's phone to send their move. null = they left or
+  // fell asleep (40s), and a bot moves for them.
+  remoteAction(seat) {
+    this.setInfo(`${this.name(seat).toUpperCase()}'S TURN`, RACES[this.race(seat)].color);
+    return new Promise((res) => {
+      const check = this.time.addEvent({ delay: 500, loop: true, callback: () => { if (this.ctl(seat) !== 'remote') done(null); } });
+      const nap = this.time.delayedCall(40000, () => done(null));
+      const done = (a) => {
+        if (!this.remoteWait) return;
+        this.remoteWait = null;
+        check.remove(); nap.remove();
+        res(a);
+      };
+      this.remoteWait = { seat, done };
+    });
+  }
+
+  lost(reason) {
+    this.net?.close();
+    const L = this.add.container(0, 0).setDepth(990);
+    L.add(dimmer(this, 0.7, 0));
+    L.add(text(this, 320, 150, reason || 'Connection lost.', { size: 12, ox: 0.5, color: T.red }));
+    L.add(button(this, 245, 190, 150, 40, 'BACK', () => fadeTo(this, 'Lobby'), { size: 10 }));
   }
 
   // ------------------------------------------------------------------ drawing
@@ -161,6 +303,7 @@ export class StackScene extends Phaser.Scene {
 
   renderHand(interactive = false) {
     this.handLayer.removeAll(true);
+    if (this.spectator) return;
     const st = this.st;
     const hand = this.sortHand(st.hands[this.me]);
     const n = hand.length;
@@ -192,34 +335,43 @@ export class StackScene extends Phaser.Scene {
   // ------------------------------------------------------------------ flow
   async loop() {
     const st = this.st;
-    while (st.winner === null) {
+    while (st.winner === null && this.sys.isActive()) {
       const seat = S.current(st);
       this.render();
-      if (seat === this.me && !this.auto) await this.humanTurn();
-      else await this.botTurn(seat);
+      const who = this.ctl(seat);
+      let action = null;
+      if (who === 'me') action = await this.humanAction();
+      else if (who === 'remote') action = await this.remoteAction(seat);
+      if (!action) {
+        this.setInfo(st.pending ? `${this.name(seat).toUpperCase()} IS STARING AT +${st.pending.amount}...` : `${this.name(seat).toUpperCase()} IS THINKING...`, RACES[this.race(seat)].color);
+        await this.wait(st.drew ? 350 : 650 + Math.random() * 500);
+        action = S.botMove(st, seat, rng);
+      }
+      await this.step(seat, action);
       await this.wait(220);
     }
     this.render();
     this.finish();
   }
 
-  async botTurn(seat) {
-    const st = this.st;
-    this.setInfo(st.pending ? `${this.name(seat).toUpperCase()} IS STARING AT +${st.pending.amount}...` : `${this.name(seat).toUpperCase()} IS THINKING...`, RACES[this.race(seat)].color);
-    await this.wait(650 + Math.random() * 500);
-    let ev = S.apply(st, seat, S.botMove(st, seat, rng), rng);
-    await this.animate(ev);
-    if (ev[0].t === 'draw' && st.winner === null && S.current(st) === seat) {
-      await this.wait(350);
-      ev = S.apply(st, seat, S.botMove(st, seat, rng), rng);
-      await this.animate(ev);
+  // apply one move, tell the room, animate it
+  async step(seat, action) {
+    let ev;
+    try {
+      ev = S.apply(this.st, seat, action, rng);
+    } catch (e) {
+      console.warn('illegal move ignored', seat, action, e.message);
+      this.broadcast([]); // re-sync whoever sent it
+      return false;
     }
+    this.broadcast(ev);
+    await this.animate(ev);
+    return true;
   }
 
-  humanTurn() {
-    const st = this.st;
+  humanAction() {
     return new Promise((resolve) => {
-      this.finishTurn = resolve;
+      this.awaiting = resolve;
       this.showControls();
     });
   }
@@ -248,39 +400,21 @@ export class StackScene extends Phaser.Scene {
   }
 
   tapCard(cd) {
-    if (!this.finishTurn) return;
+    if (!this.awaiting) return;
     sfx('select');
     if (cd.v === 'wild' || cd.v === '+4' || cd.v === 'rbay') return this.pickColor((color) => this.act({ type: 'play', cardId: cd.id, color }));
     if (cd.v === 'swap') return this.pickColor((color) => this.pickTarget((target) => this.act({ type: 'play', cardId: cd.id, color, target })));
     this.act({ type: 'play', cardId: cd.id });
   }
 
-  async act(action) {
-    if (!this.finishTurn) return;
-    const done = this.finishTurn;
-    this.finishTurn = null;
+  act(action) {
+    if (!this.awaiting) return;
+    const done = this.awaiting;
+    this.awaiting = null;
     this.btnLayer.removeAll(true);
     this.overlay?.destroy();
     this.renderHand(false);
-    let ev;
-    try {
-      ev = S.apply(this.st, this.me, action, rng);
-    } catch (e) {
-      // shouldn't happen (illegal moves aren't tappable), but never soft-lock
-      console.warn(e);
-      this.finishTurn = done;
-      this.showControls();
-      return;
-    }
-    await this.animate(ev);
-    // drew a card: still your turn (play it or pass)
-    if (ev[0].t === 'draw' && this.st.winner === null && S.current(this.st) === this.me) {
-      this.finishTurn = done;
-      this.render();
-      this.showControls();
-      return;
-    }
-    done();
+    done(action);
   }
 
   pickColor(cb) {
@@ -315,7 +449,10 @@ export class StackScene extends Phaser.Scene {
   async lastCardClock(seat) {
     const st = this.st;
     const L = this.add.container(0, 0).setDepth(880);
-    const mine = seat === this.me && !this.auto;
+    this.clockUI?.destroy();
+    this.clockUI = L;
+    const who = this.role === 'client' ? (seat === this.me && !this.spectator ? 'me' : 'watch') : this.ctl(seat);
+    const mine = who === 'me';
     const MS = 3000;
     const col = RACES[this.race(seat)].color;
     L.add(text(this, 320, 228, mine ? 'ONE CARD LEFT!' : `${this.name(seat).toUpperCase()} HAS ONE CARD...`, { size: 10, ox: 0.5, color: col, strokeThickness: 4 }));
@@ -325,14 +462,19 @@ export class StackScene extends Phaser.Scene {
     const done = new Promise((res) => {
       const finish = (r) => { if (result === null) { result = r; res(r); } };
       if (mine) {
-        const b = button(this, 236, 240, 168, 46, 'LAST CARD!', () => finish('called'), { size: 14, fill: 0x8a5a1a, border: C.gold });
+        const b = button(this, 236, 240, 168, 46, 'LAST CARD!', () => {
+          if (this.role === 'client') { this.net.send({ t: 'last', seat: this.me }); b.setEnabled(false); } else finish('called');
+        }, { size: 14, fill: 0x8a5a1a, border: C.gold });
         L.add(b);
         this.tweens.add({ targets: b, scale: 1.06, duration: 160, yoyo: true, repeat: -1 });
-      } else {
+      } else if (who === 'bot') {
         const ms = S.botLastReaction(rng);
         if (ms !== null && ms <= MS) this.time.delayedCall(ms, () => finish('called'));
+      } else if (who === 'remote') {
+        this.lastWait = { seat, done: () => finish('called') };
       }
-      this.time.delayedCall(MS, () => finish('missed'));
+      // the host gives a friend's phone a little extra for the trip over the internet
+      this.time.delayedCall(who === 'remote' ? MS + 400 : MS, () => finish('missed'));
     });
     // countdown bar
     const t0 = this.time.now;
@@ -346,10 +488,18 @@ export class StackScene extends Phaser.Scene {
       },
     });
     if (mine) sfx('select');
+    if (this.role === 'client') {
+      // the host decides; its next packet (lastcard / missed) closes this
+      this.time.delayedCall(MS + 1500, () => { tick.remove(); if (this.clockUI === L) { L.destroy(); this.clockUI = null; } });
+      return;
+    }
     await done;
+    this.lastWait = null;
     tick.remove();
     L.destroy();
+    this.clockUI = null;
     const ev = result === 'called' ? S.callLast(st, seat) : S.missLast(st, seat, rng);
+    this.broadcast(ev);
     await this.animate(ev);
   }
 
@@ -467,12 +617,14 @@ export class StackScene extends Phaser.Scene {
           await this.lastCardClock(e.seat);
           break;
         case 'lastcard':
+          this.clockUI?.destroy(); this.clockUI = null;
           sfx('coin');
           this.banner(`${this.name(e.seat).toUpperCase()}: LAST CARD!`, T.gold, 900);
           this.say(e.seat, 'last');
           await this.wait(400);
           break;
         case 'missed':
+          this.clockUI?.destroy(); this.clockUI = null;
           sfx('whip');
           this.cameras.main.shake(160, 0.005);
           this.banner(`TOO SLOW! ${this.name(e.seat).toUpperCase()} DRAWS 2`, T.red, 1100);
@@ -490,11 +642,14 @@ export class StackScene extends Phaser.Scene {
 
   // ------------------------------------------------------------------ results
   async finish() {
+    if (this.finished) return;
+    this.finished = true;
     const st = this.st;
     const w = st.winner;
     this.btnLayer.removeAll(true);
     this.setInfo(`${this.name(w).toUpperCase()} WINS`, RACES[this.race(w)].color);
-    addGold(w, this.pot);
+    if (this.role !== 'client') addGold(w, this.pot);
+    if (this.role === 'host') { this.broadcast([]); this.net.setGame(null); }
     this.faces[w].setPose('victory');
     sfx('jackpot');
     this.say(w, 'win');
@@ -512,7 +667,15 @@ export class StackScene extends Phaser.Scene {
       L.add(text(this, 216, y + 10, `${k + 1}. ${this.name(s)}`, { size: 10, color: RACES[this.race(s)].color }));
       L.add(text(this, 470, y + 10, s === w ? `+${this.pot - ANTE}g` : `${st.hands[s].length} left  -${ANTE}g`, { size: 8, ox: 1, color: s === w ? T.gold : T.red }));
     });
-    L.add(button(this, 245, 238, 150, 34, 'CONTINUE', () => fadeTo(this, this.returnTo), { size: 10, fill: 0x2a5a3a }));
+    if (this.role === 'host') {
+      L.add(button(this, 160, 238, 150, 34, 'PLAY AGAIN', () => this.scene.restart({ net: this.net, returnTo: this.returnTo }), { size: 10, fill: 0x2a5a3a }));
+      L.add(button(this, 330, 238, 150, 34, 'LOBBY', () => { this.net.send({ t: 'tolobby' }); this.scene.start('Lobby'); }, { size: 10 }));
+    } else if (this.role === 'client') {
+      L.add(text(this, 320, 246, 'Waiting for the host...', { size: 8, ox: 0.5, color: T.grey }));
+      L.add(button(this, 245, 262, 150, 30, 'LEAVE', () => { this.net.close(); fadeTo(this, 'Lobby'); }, { size: 8 }));
+    } else {
+      L.add(button(this, 245, 238, 150, 34, 'CONTINUE', () => fadeTo(this, this.returnTo), { size: 10, fill: 0x2a5a3a }));
+    }
   }
 
   wait(ms) { return new Promise((res) => this.time.delayedCall(ms, res)); }
