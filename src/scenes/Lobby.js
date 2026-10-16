@@ -134,7 +134,8 @@ export class LobbyScene extends Phaser.Scene {
     this.seatLayer.removeAll(true);
     const L = this.seatLayer;
     const mine = s.mySeat();
-    L.add(text(this, 320, 60, mine < 0 ? 'TAP THE FRIEND YOU ARE PLAYING AS' : 'TAP ANOTHER FRIEND TO SWITCH', { size: 8, ox: 0.5, color: T.cream }));
+    const full = mine < 0 && s.seats.every(Boolean);
+    L.add(text(this, 320, 60, full ? 'ALL FOUR SEATS ARE TAKEN. YOU CAN WATCH.' : mine < 0 ? 'TAP THE FRIEND YOU ARE PLAYING AS' : 'TAP ANOTHER FRIEND TO SWITCH', { size: 8, ox: 0.5, color: full ? T.gold : T.cream }));
     run.party.forEach((h, i) => {
       const p = portraitActor(this, h.race, SPOTS[i], 214, { scale: 2, depth: 21 });
       L.add(p);
@@ -174,6 +175,7 @@ export class LobbyScene extends Phaser.Scene {
 
   start() {
     sfx('jackpot');
+    run.stackMatch = null; // fresh scoreboard
     this.scene.start('Stack', { net: session });
   }
 

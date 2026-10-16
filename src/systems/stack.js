@@ -314,3 +314,57 @@ export function apply(st, seat, action, rng) {
 
 // Sum of every card in the game (for tests).
 export const cardCount = (st) => st.draw.length + st.discard.length + Object.values(st.hands).reduce((n, h) => n + h.length, 0);
+
+// ------------------------------------------------------------------ matches
+// A match is a run of rounds: first to 6 round wins, but you have to win by 2
+// (6-4 wins; 6-5 keeps going, 7-5 wins). Then the scoreboard resets.
+// Between rounds everyone READYs up, and can vote to SHUFFLE the seats:
+// 60% of the human players voting yes = random new seating order.
+export const MATCH_TARGET = 6;
+export const MATCH_BY = 2;
+export const SHUFFLE_SHARE = 0.6;
+
+export function newMatch(seats) {
+  return { order: seats.slice(), wins: Object.fromEntries(seats.map((s) => [s, 0])), round: 1, titles: {}, champion: null, final: null };
+}
+
+// Record a round win. Returns the match winner's seat, or null if it goes on.
+export function recordWin(match, seat) {
+  match.champion = null;
+  match.final = null;
+  match.wins[seat] = (match.wins[seat] || 0) + 1;
+  const sorted = Object.values(match.wins).sort((a, b) => b - a);
+  const best = match.wins[seat];
+  const second = Object.entries(match.wins).filter(([s]) => Number(s) !== seat).reduce((m, [, w]) => Math.max(m, w), 0);
+  if (best === sorted[0] && best >= MATCH_TARGET && best - second >= MATCH_BY) {
+    match.champion = seat;
+    match.final = { ...match.wins };
+    match.titles[seat] = (match.titles[seat] || 0) + 1;
+    return seat;
+  }
+  return null;
+}
+
+// Start the next round: bump the round, reset the board after a match win,
+// and shuffle the seats if the vote passed.
+export function nextRound(match, rng, shuffle) {
+  if (match.champion !== null) {
+    Object.keys(match.wins).forEach((s) => { match.wins[s] = 0; });
+    match.round = 0;
+    match.champion = null;
+  }
+  match.round++;
+  if (shuffle && match.order.length > 2) {
+    let o = match.order;
+    for (let k = 0; k < 8 && o.join() === match.order.join(); k++) o = rng.shuffle(match.order);
+    match.order = o;
+  }
+  return match;
+}
+
+// post-round ready / vote bookkeeping. humans: seats played by real people.
+export function voteCount(post, humans) {
+  const yes = humans.filter((s) => post.vote[s]).length;
+  return { yes, of: humans.length, passes: humans.length > 0 && yes / humans.length >= SHUFFLE_SHARE - 1e-9 };
+}
+export const allReady = (post, humans) => humans.every((s) => post.ready[s]);

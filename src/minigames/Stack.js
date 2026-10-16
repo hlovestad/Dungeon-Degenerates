@@ -42,35 +42,57 @@ export class StackScene extends Phaser.Scene {
     this.me = this.net ? this.net.mySeat() : (data.me ?? run.me ?? 0);
     this.spectator = this.me < 0;
     if (this.spectator) this.me = 0;
+    // scene.restart() reuses this object: clear everything from the last round
     this.seq = 0;
     this.queue = [];
     this.finished = false;
+    this.resultsReady = false;
+    this.starting = false;
+    this.results = null;
+    this.awaiting = null;
+    this.remoteWait = null;
+    this.lastWait = null;
+    this.early = {}; // host: moves that arrived before we were listening, by seat
+    this.earlyLast = {}; // host: LAST CARD taps that beat the clock starting
+    this.draining = false;
+    this.animating = false;
+    this.pendingBuild = false;
+    this.infoStr = '';
     this.offs = [];
     this.events.once('shutdown', () => { this.offs.forEach((f) => f()); if (this.net?.isHost) this.net.snapshot = null; });
     const seats = run.party.map((_, i) => i);
+    this.post = null; // between rounds: { ready: {seat: bool}, vote: {seat: bool} }
     if (this.role === 'client') {
       // the host already dealt: take its state
       const m = data.init;
       this.st = m.st;
       this.pot = m.pot;
       this.seq = m.seq || 0;
+      this.match = m.match;
+      this.post = m.post || null;
+      this.shuffled = !!m.shuffled;
       this.setGold(m.gold);
     } else {
-      this.st = S.newGame(seats, rng);
+      // the match (scoreboard + seating order) carries over between rounds
+      if (!run.stackMatch || run.stackMatch.order.length !== seats.length) run.stackMatch = S.newMatch(seats);
+      this.match = run.stackMatch;
+      this.shuffled = !!data.shuffled;
+      this.st = S.newGame(this.match.order, rng);
       // the pot
       this.pot = 0;
       seats.forEach((s) => { this.pot += -addGold(s, -ANTE); });
     }
 
-    // opponents in turn order after you, left to right
+    // opponents around the table in turn order: left, across, right
     this.order = [];
     let s = this.me;
-    for (let k = 1; k < seats.length; k++) { s = S.nextSeat({ ...this.st, dir: 1 }, s); this.order.push(s); }
+    for (let k = 1; k < this.st.seats.length; k++) { s = S.nextSeat({ ...this.st, dir: 1 }, s); this.order.push(s); }
 
     enterTall(this, () => (this.animating ? (this.pendingBuild = true) : this.build()));
     this.build();
     this.netSetup();
-    this.time.delayedCall(500, () => (this.role === 'client' ? this.clientPrompt() : this.loop()));
+    if (this.shuffled) this.time.delayedCall(350, () => { sfx('dice'); this.banner('SEATS SHUFFLED!', T.purple, 1500); });
+    this.time.delayedCall(this.shuffled ? 1200 : 500, () => (this.role === 'client' ? this.clientPrompt() : this.loop()));
   }
 
   // ------------------------------------------------------------------ layout
@@ -80,18 +102,20 @@ export class StackScene extends Phaser.Scene {
     const ch = Math.round(cw * 1.45);
     const rows = 2; // hand rows we leave room for (more cards just squeeze tighter)
     const top = 22; // info bar
-    const oppY = top + 78; // bottom of the opponents' frames
-    const countY = oppY + 24;
+    const oppY = top + 76; // bottom of the across-the-table opponent's frame
+    const countY = oppY + 22;
     const handBottom = H - 8;
     const handTop = handBottom - rows * ch - (rows - 1) * 6;
     const ctrlY = handTop - 48; // top of the button row
-    const t0 = countY + 18, t1 = ctrlY - 8;
+    const t0 = countY + 14, t1 = ctrlY - 8;
     const cy = Math.round((t0 + t1) / 2);
+    const sideY = Math.min(t0 + 88, cy + 24); // bottom of the side opponents' frames
     return {
       W, H, cw, ch, rows, top, oppY, countY, handBottom, handTop, ctrlY, t0, t1, cy,
-      opp: [W / 6, W / 2, (W * 5) / 6].map((x) => ({ x: Math.round(x), y: oppY })),
-      draw: { x: Math.round(W / 2 - 42), y: cy + 6 },
-      discard: { x: Math.round(W / 2 + 42), y: cy + 6 },
+      // left, across, right (you're at the bottom)
+      opp: [{ x: 42, y: sideY }, { x: Math.round(W / 2), y: oppY }, { x: W - 42, y: sideY }],
+      draw: { x: Math.round(W / 2 - 30), y: cy + 6 },
+      discard: { x: Math.round(W / 2 + 30), y: cy + 6 },
       mid: { x: Math.round(W / 2), y: cy },
     };
   }
@@ -116,12 +140,13 @@ export class StackScene extends Phaser.Scene {
     this.order.forEach((seat, k) => {
       const p = L.opp[k];
       this.faces[seat] = portraitActor(this, this.race(seat), p.x, p.y, { depth: 20 });
-      this.counts[seat] = this.add.container(p.x - 14, L.countY).setDepth(21);
+      this.counts[seat] = this.add.container(p.x - 22, p.y + 22).setDepth(21);
     });
     // you: a small portrait at the left of the button row
     this.faces[this.me] = portraitActor(this, this.race(this.me), 26, L.ctrlY + 42, { depth: 20, label: false });
     this.faces[this.me].setScale(0.6);
     this.faces[this.me].h *= 0.6;
+    this.myWins = text(this, 50, L.ctrlY + 22, '', { size: 8, oy: 0.5, color: T.gold, depth: 21 });
     // Dani: a little portrait on the bottom corner of Griffin's frame
     const g = run.party.findIndex((h) => h.race === 'griffin');
     if (g >= 0 && g !== this.me) {
@@ -131,7 +156,7 @@ export class StackScene extends Phaser.Scene {
 
     panel(this, 4, 2, L.W - 8, 20, { alpha: 0.85 }).setDepth(30);
     this.info = text(this, 10, 12, this.infoStr || '', { size: 8, oy: 0.5, depth: 31, color: this.infoCol || T.cream });
-    this.potText = text(this, 18, L.t0 + 8, '', { size: 8, color: T.gold, depth: 31 });
+    this.potText = text(this, L.mid.x, L.t1 - 12, '', { size: 8, ox: 0.5, oy: 0.5, color: T.gold, depth: 31 });
 
     this.pileLayer = this.add.container(0, 0).setDepth(40);
     this.handLayer = this.add.container(0, 0).setDepth(60);
@@ -151,23 +176,34 @@ export class StackScene extends Phaser.Scene {
       n.setGame('stack');
       n.snapshot = () => this.packet([]);
       n.send({ ...this.packet([]), t: 'start' });
+      // A fast phone can answer before this phone has finished animating, so
+      // early moves are kept (tagged with the state they answered) until used.
       this.offs.push(n.on('act', (m) => {
+        if (m.seq !== undefined && m.seq !== this.seq) return; // answered an old state
         if (this.remoteWait && m.seat === this.remoteWait.seat) this.remoteWait.done(m.action);
+        else this.early[m.seat] = { seq: this.seq, action: m.action };
       }));
       this.offs.push(n.on('last', (m) => {
         if (this.lastWait && m.seat === this.lastWait.seat) this.lastWait.done();
+        else this.earlyLast[m.seat] = m.seq ?? this.seq;
       }));
+      this.offs.push(n.on('ready', (m) => this.setPost('ready', m.seat, m.on)));
+      this.offs.push(n.on('vote', (m) => this.setPost('vote', m.seat, m.on)));
     } else {
       this.offs.push(n.on('ev', (m) => this.receive(m)));
       this.offs.push(n.on('snap', (m) => { this.seq = m.seq; this.st = m.st; this.pot = m.pot; this.setGold(m.gold); this.render(); this.clientPrompt(); }));
       this.offs.push(n.on('start', (m) => this.scene.restart({ net: n, init: m, returnTo: this.returnTo })));
       this.offs.push(n.on('tolobby', () => this.scene.start('Lobby')));
+      this.offs.push(n.on('post', (m) => { this.post = m.post; this.match = m.match; this.drawResults(); }));
       this.offs.push(n.on('lobby', () => { const me = n.mySeat(); if (me >= 0 && me !== this.me && !this.spectator) this.me = me; }));
     }
   }
 
   packet(ev) {
-    return { t: 'ev', seq: this.seq, ev, st: JSON.parse(JSON.stringify(this.st)), pot: this.pot, gold: run.party.map((h) => h.gold) };
+    return {
+      t: 'ev', seq: this.seq, ev, st: JSON.parse(JSON.stringify(this.st)), pot: this.pot, gold: run.party.map((h) => h.gold),
+      match: this.match, post: this.post, shuffled: this.shuffled,
+    };
   }
 
   // host: tell everyone what just happened
@@ -209,6 +245,8 @@ export class StackScene extends Phaser.Scene {
       this.overlay?.destroy();
       this.st = m.st;
       this.pot = m.pot;
+      if (m.match) this.match = m.match;
+      if (m.post !== undefined) this.post = m.post;
       this.setGold(m.gold);
       await this.animate(m.ev);
       this.render();
@@ -226,7 +264,7 @@ export class StackScene extends Phaser.Scene {
     if (seat === this.me && !this.spectator) {
       this.humanAction().then((action) => {
         this.setInfo('...', T.grey);
-        this.net.send({ t: 'act', seat: this.me, action });
+        this.net.send({ t: 'act', seat: this.me, action, seq: this.seq });
       });
     } else {
       this.setInfo(st.pending ? `${this.name(seat).toUpperCase()} IS STARING AT +${st.pending.amount}...` : `${this.name(seat).toUpperCase()}'S TURN`, RACES[this.race(seat)].color);
@@ -237,6 +275,9 @@ export class StackScene extends Phaser.Scene {
   // fell asleep (40s), and a bot moves for them.
   remoteAction(seat) {
     this.setInfo(`${this.name(seat).toUpperCase()}'S TURN`, RACES[this.race(seat)].color);
+    const e = this.early[seat];
+    delete this.early[seat];
+    if (e && e.seq === this.seq) return Promise.resolve(e.action);
     return new Promise((res) => {
       const check = this.time.addEvent({ delay: 500, loop: true, callback: () => { if (this.ctl(seat) !== 'remote') done(null); } });
       const nap = this.time.delayedCall(40000, () => done(null));
@@ -315,7 +356,7 @@ export class StackScene extends Phaser.Scene {
     // direction, between the piles
     P.add(text(this, L.mid.x, d.y, st.dir === 1 ? '>>' : '<<', { size: 8, ox: 0.5, oy: 0.5, color: T.cream }));
     if (st.pending) {
-      const pt = text(this, L.mid.x, Math.max(L.t0 + 16, d.y - 54), `+${st.pending.amount}`, { size: 20, ox: 0.5, oy: 0.5, color: T.red, strokeThickness: 6 });
+      const pt = text(this, L.mid.x, Math.max(L.t0 + 14, d.y - 52), `+${st.pending.amount}`, { size: 20, ox: 0.5, oy: 0.5, color: T.red, strokeThickness: 6 });
       P.add(pt);
       this.tweens.add({ targets: pt, scale: 1.12, duration: 300, yoyo: true, repeat: -1 });
     }
@@ -327,7 +368,9 @@ export class StackScene extends Phaser.Scene {
       cont.add(this.card(null, 2, 1, 16, 22, false));
       cont.add(this.card(null, 0, 0, 16, 22, false));
       cont.add(text(this, 12, 0, `x${n}`, { size: 8, oy: 0.5, color: n <= 2 ? T.red : T.white, strokeThickness: 4 }));
+      cont.add(text(this, 40, 0, `W${this.match?.wins?.[seat] ?? 0}`, { size: 8, oy: 0.5, color: T.gold, strokeThickness: 4 }));
     });
+    this.myWins?.setText(this.spectator ? 'WATCHING' : `W${this.match?.wins?.[this.me] ?? 0}`);
 
     // turn ring around whoever is up
     this.ring.clear();
@@ -518,7 +561,7 @@ export class StackScene extends Phaser.Scene {
       const finish = (r) => { if (result === null) { result = r; res(r); } };
       if (mine) {
         const b = button(this, this.L.W / 2 - 90, this.L.cy - 28, 180, 56, 'LAST CARD!', () => {
-          if (this.role === 'client') { this.net.send({ t: 'last', seat: this.me }); b.setEnabled(false); } else finish('called');
+          if (this.role === 'client') { this.net.send({ t: 'last', seat: this.me, seq: this.seq }); b.setEnabled(false); } else finish('called');
         }, { size: 14, fill: 0x8a5a1a, border: C.gold });
         L.add(b);
         this.tweens.add({ targets: b, scale: 1.06, duration: 160, yoyo: true, repeat: -1 });
@@ -526,7 +569,8 @@ export class StackScene extends Phaser.Scene {
         const ms = S.botLastReaction(rng);
         if (ms !== null && ms <= MS) this.time.delayedCall(ms, () => finish('called'));
       } else if (who === 'remote') {
-        this.lastWait = { seat, done: () => finish('called') };
+        if (this.earlyLast[seat] === this.seq) { delete this.earlyLast[seat]; finish('called'); }
+        else this.lastWait = { seat, done: () => finish('called') };
       }
       // the host gives a friend's phone a little extra for the trip over the internet
       this.time.delayedCall(who === 'remote' ? MS + 400 : MS, () => finish('missed'));
@@ -569,7 +613,7 @@ export class StackScene extends Phaser.Scene {
     if (!q || !q[kind]) return;
     const f = this.faces[seat];
     const x = seat === this.me ? 90 : f.x;
-    const y = seat === this.me ? this.L.ctrlY - 4 : this.L.countY + 56;
+    const y = seat === this.me ? this.L.ctrlY - 4 : f.y + 64;
     bubble(this, x, y, rng.pick(q[kind]), 2000).setDepth(850);
   }
 
@@ -714,45 +758,119 @@ export class StackScene extends Phaser.Scene {
     const w = st.winner;
     this.btnLayer.removeAll(true);
     this.setInfo(`${this.name(w).toUpperCase()} WINS`, RACES[this.race(w)].color);
-    if (this.role !== 'client') addGold(w, this.pot);
+    if (this.role !== 'client') {
+      addGold(w, this.pot);
+      S.recordWin(this.match, w);
+      this.post = { ready: {}, vote: {} };
+    }
     if (this.role === 'host') { this.broadcast([]); this.net.setGame(null); }
+    this.render();
     this.faces[w].setPose('victory');
     sfx('jackpot');
     this.say(w, 'win');
     await this.wait(1400);
     this.resultsReady = true;
     this.drawResults();
+    if (this.role !== 'client') {
+      // keep checking: someone might drop out instead of readying up
+      this.readyTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => this.checkReady() });
+      if (this.auto) this.time.delayedCall(2500, () => this.setPost('ready', this.me, true));
+    }
+  }
+
+  // seats played by real people (they ready up and vote; bots don't)
+  humans() {
+    if (this.role === 'local') return this.auto || this.spectator ? [] : [this.me];
+    return this.st.seats.filter((s) => this.net.seats[s]);
+  }
+
+  // a tap on READY or SHUFFLE (yours, or a friend's arriving at the host)
+  setPost(kind, seat, on) {
+    if (!this.post) return;
+    if (this.role === 'client') {
+      this.net.send({ t: kind, seat, on });
+      this.post[kind][seat] = on; // show it straight away; the host confirms
+      this.drawResults();
+      return;
+    }
+    this.post[kind][seat] = !!on;
+    if (this.role === 'host') this.net.send({ t: 'post', post: this.post, match: this.match });
+    this.drawResults();
+    this.checkReady();
+  }
+
+  checkReady() {
+    if (!this.post || this.starting) return;
+    const humans = this.humans();
+    if (humans.length && !S.allReady(this.post, humans)) return;
+    if (!humans.length && !this.auto && this.role !== 'local') return;
+    this.starting = true;
+    const v = S.voteCount(this.post, humans);
+    S.nextRound(this.match, rng, v.passes);
+    run.stackMatch = this.match;
+    this.time.delayedCall(400, () => this.scene.restart({ net: this.net, returnTo: this.returnTo, shuffled: v.passes, auto: this.auto }));
   }
 
   drawResults() {
     if (!this.resultsReady) return;
     const st = this.st;
     const w = st.winner;
+    const m = this.match;
+    const post = this.post || { ready: {}, vote: {} };
     const { W, H } = this.L;
+    const humans = this.role === 'client' ? st.seats.filter((x) => this.net.seats[x]) : this.humans();
     this.results?.destroy();
     const R = (this.results = this.add.container(0, 0).setDepth(900));
-    const top = Math.max(30, Math.round(H / 2 - 150));
-    R.add(dimmer(this, 0.55, 0));
-    R.add(panel(this, 10, top, W - 20, 270, { border: C.gold }));
-    R.add(text(this, W / 2, top + 14, 'STACK ATTACK: RESULTS', { size: 8, ox: 0.5, color: T.gold }));
-    const rank = st.seats.slice().sort((a, b) => st.hands[a].length - st.hands[b].length);
-    rank.forEach((s, k) => {
-      const y = top + 36 + k * 40;
-      const f = portraitActor(this, this.race(s), 38, y + 34, { label: false, depth: 905 });
+    const top = Math.max(26, Math.round(H / 2 - 168));
+    R.add(dimmer(this, 0.6, 0));
+    R.add(panel(this, 8, top, W - 16, 330, { border: C.gold }));
+    const champ = m.champion;
+    if (champ !== null && champ !== undefined) {
+      const f = m.final || m.wins;
+      const others = Object.entries(f).filter(([x]) => Number(x) !== champ).map(([, n]) => n);
+      R.add(text(this, W / 2, top + 12, `${this.name(champ).toUpperCase()} WINS THE MATCH`, { size: 10, ox: 0.5, color: RACES[this.race(champ)].color, strokeThickness: 4 }));
+      R.add(text(this, W / 2, top + 28, `${f[champ]}-${Math.max(...others)}. SCOREBOARD RESETS.`, { size: 8, ox: 0.5, color: T.gold }));
+    } else {
+      R.add(text(this, W / 2, top + 12, `ROUND ${m.round}: ${this.name(w).toUpperCase()} WINS`, { size: 10, ox: 0.5, color: RACES[this.race(w)].color }));
+      R.add(text(this, W / 2, top + 28, `FIRST TO ${S.MATCH_TARGET} WINS, WIN BY ${S.MATCH_BY}`, { size: 8, ox: 0.5, color: T.grey }));
+    }
+    // scoreboard, best first
+    const board = champ !== null && champ !== undefined ? (m.final || m.wins) : m.wins;
+    const rank = st.seats.slice().sort((a, b) => (board[b] || 0) - (board[a] || 0) || st.hands[a].length - st.hands[b].length);
+    rank.forEach((x, k) => {
+      const y = top + 44 + k * 38;
+      const f = portraitActor(this, this.race(x), 30, y + 34, { label: false, depth: 905 });
       f.setScale(0.5);
       R.add(f);
-      R.add(text(this, 62, y + 10, `${k + 1}. ${this.name(s)}`, { size: 10, color: RACES[this.race(s)].color }));
-      R.add(text(this, 62, y + 24, s === w ? `wins the pot: +${this.pot - ANTE}g` : `${st.hands[s].length} cards left: -${ANTE}g`, { size: 8, color: s === w ? T.gold : T.red }));
+      R.add(text(this, 52, y + 8, `${this.name(x)}${x === this.me && !this.spectator ? ' (YOU)' : ''}`, { size: 8, color: RACES[this.race(x)].color }));
+      R.add(text(this, 52, y + 22, x === w ? `won the round +${this.pot - ANTE}g` : `${st.hands[x].length} left -${ANTE}g`, { size: 8, color: x === w ? T.gold : T.grey }));
+      R.add(text(this, W - 20, y + 8, `${board[x] || 0}`, { size: 14, ox: 1, color: T.gold, strokeThickness: 4 }));
+      const isHuman = humans.includes(x);
+      const status = !isHuman ? 'BOT' : post.ready[x] ? 'READY' : '...';
+      R.add(text(this, W - 20, y + 26, status, { size: 8, ox: 1, color: status === 'READY' ? T.green : T.grey }));
     });
-    const by = top + 208;
-    if (this.role === 'host') {
-      R.add(button(this, 20, by, (W - 50) / 2, 44, 'PLAY AGAIN', () => this.scene.restart({ net: this.net, returnTo: this.returnTo }), { size: 8, fill: 0x2a5a3a }));
-      R.add(button(this, 30 + (W - 50) / 2, by, (W - 50) / 2, 44, 'LOBBY', () => { this.net.send({ t: 'tolobby' }); this.scene.start('Lobby'); }, { size: 8 }));
-    } else if (this.role === 'client') {
-      R.add(text(this, W / 2, by + 4, 'Waiting for the host...', { size: 8, ox: 0.5, color: T.grey }));
-      R.add(button(this, W / 2 - 70, by + 18, 140, 34, 'LEAVE', () => { this.net.close(); fadeTo(this, 'Lobby'); }, { size: 8 }));
+    // ready + shuffle vote
+    const by = top + 202;
+    const v = S.voteCount(post, humans);
+    R.add(text(this, W / 2, by, `SHUFFLE SEATS? ${v.yes}/${v.of} YES (NEED 60%)`, { size: 8, ox: 0.5, color: v.passes ? T.purple : T.cream }));
+    if (!this.spectator) {
+      const meReady = !!post.ready[this.me], meVote = !!post.vote[this.me];
+      R.add(button(this, 18, by + 12, (W - 46) / 2, 44, meVote ? 'SHUFFLE: YES' : 'SHUFFLE: NO', () => this.setPost('vote', this.me, !meVote), {
+        size: 8, fill: meVote ? 0x5a2a7a : C.panelHi,
+      }));
+      R.add(button(this, 28 + (W - 46) / 2, by + 12, (W - 46) / 2, 44, meReady ? 'READY!' : 'READY UP', () => this.setPost('ready', this.me, !meReady), {
+        size: 10, fill: meReady ? 0x2a5a3a : 0x6a5a1a,
+      }));
     } else {
-      R.add(button(this, W / 2 - 80, by, 160, 44, 'CONTINUE', () => fadeTo(this, this.returnTo), { size: 10, fill: 0x2a5a3a }));
+      R.add(text(this, W / 2, by + 30, 'You are watching this one.', { size: 8, ox: 0.5, color: T.grey }));
+    }
+    const ly = by + 66;
+    if (this.role === 'host') {
+      R.add(button(this, W / 2 - 60, ly, 120, 32, 'BACK TO LOBBY', () => { this.net.send({ t: 'tolobby' }); this.scene.start('Lobby'); }, { size: 8 }));
+    } else if (this.role === 'client') {
+      R.add(button(this, W / 2 - 60, ly, 120, 32, 'LEAVE', () => { this.net.close(); fadeTo(this, 'Lobby'); }, { size: 8 }));
+    } else {
+      R.add(button(this, W / 2 - 60, ly, 120, 32, 'DONE', () => { run.stackMatch = null; fadeTo(this, this.returnTo); }, { size: 8 }));
     }
   }
 

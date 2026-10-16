@@ -3,8 +3,9 @@
 // friends; unclaimed friends are bots run by the host.
 //
 // Messages (all carry `from`, the sender's id):
-//   client -> host : hello, claim {seat}, release, ping, act {seat, action}, last {seat}
-//   host -> all    : lobby {seats, game}, start {...}, ev {...}, snap {...}, tolobby, bye
+//   client -> host : hello, claim {seat}, release, ping, act {seat, action}, last {seat},
+//                    ready {seat, on}, vote {seat, on}
+//   host -> all    : lobby {seats, game}, start {...}, ev {...}, snap {...}, post {...}, tolobby, bye
 //
 // The host also counts as a player and claims a seat like everyone else.
 import { makeTransport } from './transport.js';
@@ -134,6 +135,8 @@ export class Session {
         break;
       case 'act':
       case 'last':
+      case 'ready':
+      case 'vote':
         // only the phone that owns that seat may act for it
         if (this.seats[m.seat] === m.from) this.emit(m.t, m);
         break;
