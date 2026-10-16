@@ -60,7 +60,7 @@ export default [
   { q: "Which country singer starred as The Gambler in TV movies based on his song?", a: ["Kenny Rogers", "Willie Nelson", "Glen Campbell", "Johnny Cash"] },
   { q: "Shania Twain comes from which country?", a: ["Canada", "Australia", "USA", "Ireland"] },
   { q: "Which French electronic duo performed wearing robot helmets?", a: ["Daft Punk", "Justice", "Air", "Cassius"] },
-  { q: "How many strings does a standard guitar have?", a: ["6", "4", "7", "8"] },
+  { q: "Which band's members wore red 'energy dome' hats?", a: ["Devo", "Kraftwerk", "The B-52's", "Talking Heads"] },
   { q: "Which pop star released the album 1989?", a: ["Taylor Swift", "Katy Perry", "Lady Gaga", "Ariana Grande"] },
   { q: "Which rapper's real name is Marshall Mathers?", a: ["Eminem", "Vanilla Ice", "Macklemore", "Mac Miller"] },
   { q: "Chris Martin is the lead singer of which band?", a: ["Coldplay", "Keane", "Travis", "Snow Patrol"] },
