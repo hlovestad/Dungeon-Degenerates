@@ -71,6 +71,12 @@ export function poseKey(scene, base, pose = 'idle') {
   return scene.textures.exists(k) ? k : `${base}_idle`;
 }
 
+// The UI face for a character: the portrait if real art has one, else idle.
+export function faceKey(scene, race) {
+  const k = `${race}_portrait`;
+  return isReal(k) && scene.textures.exists(k) ? k : poseKey(scene, race, 'idle');
+}
+
 // Set a sprite's scale so its visible height matches `height` game pixels,
 // whatever resolution the source art is.
 export function fitHeight(sprite, height) {

@@ -4,7 +4,7 @@
 // something stupid. Most games won after the last one wins the night.
 import { T, C, SPRITE_HEIGHT } from '../config.js';
 import { text, panel, button, iconButton, fadeTo, fadeIn, dimmer, bubble } from '../ui/ui.js';
-import { background, actor } from '../ui/stage.js';
+import { background, portraitActor, spawnDaniPortrait } from '../ui/stage.js';
 import { run, rng } from '../systems/state.js';
 import * as A from '../systems/arcade.js';
 import { RACES } from '../data/races.js';
@@ -14,12 +14,12 @@ import { playInterlude, speak } from '../ui/interlude.js';
 import { playChaos } from '../ui/chaos.js';
 import { openCardMenu } from '../ui/cardMenu.js';
 
-// Where each seat stands. The two on the right turn to face the room.
+// Where each friend's portrait hangs (bottom-centre of the frame).
 const SPOTS = [
-  { x: 105, y: 272 },
-  { x: 245, y: 252 },
-  { x: 395, y: 252, flip: true },
-  { x: 535, y: 272, flip: true },
+  { x: 89, y: 236 },
+  { x: 243, y: 236 },
+  { x: 397, y: 236 },
+  { x: 551, y: 236 },
 ];
 export const ARCADE_PICKS = ['haakon', 'mike', 'josh', 'griffin'].map((race) => ({
   race, cls: { haakon: 'juggernaut', mike: 'goblin_king', josh: 'cosmic_oracle', griffin: 'hellbound_gambler' }[race],
@@ -35,19 +35,10 @@ export class ArcadeScene extends Phaser.Scene {
     background(this, 'bg_goblin_casino');
     this.busy = false;
 
-    // the friends, standing around
-    this.actors = run.party.map((h, i) => {
-      const s = SPOTS[i];
-      const a = actor(this, h.race, s.x, s.y, SPRITE_HEIGHT.hero, { flip: !!s.flip });
-      return a;
-    });
+    // the friends: big framed portraits (the arcade never uses full bodies)
+    this.actors = run.party.map((h, i) => portraitActor(this, h.race, SPOTS[i].x, SPOTS[i].y, { scale: 2, depth: 40 + i }));
     const g = run.party.findIndex((h) => h.race === 'griffin');
-    if (g >= 0) {
-      const ga = this.actors[g];
-      const side = SPOTS[g].flip ? 1 : -1; // Dani hovers behind him
-      const hover = isReal('dani_idle') ? 16 : 14;
-      this.dani = actor(this, 'dani', ga.x + side * Math.max(30, ga.sprite.displayWidth * 0.45), ga.y - 6, SPRITE_HEIGHT.companion, { flip: !!SPOTS[g].flip, float: hover, depth: ga.y - 7 });
-    }
+    if (g >= 0) this.dani = spawnDaniPortrait(this, this.actors[g], 1);
 
     this.hud = this.add.container(0, 0).setDepth(25);
     this.drawHud();
@@ -181,7 +172,7 @@ export class ArcadeScene extends Phaser.Scene {
       L.add(text(this, 320, 146, '+1 CROWN', { size: 10, ox: 0.5, color: T.gold, strokeThickness: 4 }));
       const a = this.actors[r.winner];
       a.setPose('victory');
-      this.tweens.add({ targets: a, y: a.y - 12, duration: 160, yoyo: true, repeat: 2, ease: 'Quad.Out' });
+      this.tweens.add({ targets: a, y: a.y - 8, duration: 160, yoyo: true, repeat: 2, ease: 'Quad.Out' });
       if (r.loser !== null && r.loser !== r.winner) this.actors[r.loser].setPose('hurt');
     } else {
       L.add(text(this, 320, 130, 'NOBODY WON. THE GOBLINS KEEP IT ALL.', { size: 10, ox: 0.5, color: T.grey, strokeThickness: 4 }));
@@ -238,8 +229,8 @@ export class ArcadeScene extends Phaser.Scene {
     L.add(panel(this, 16, 16, 608, 328));
     L.add(text(this, 320, 28, `${run.party[run.arcade.picker].name.toUpperCase()} PICKS THE GAME`, { size: 12, ox: 0.5, color: T.gold }));
     A.ARCADE_GAMES.forEach((g, i) => {
-      const col = i % 4, row = Math.floor(i / 4);
-      const b = button(this, 28 + col * 148, 52 + row * 74, 140, 66, g.name, () => { L.destroy(); this.launch(g); }, {
+      const col = i % 5, row = Math.floor(i / 5);
+      const b = button(this, 24 + col * 120, 52 + row * 76, 112, 68, g.name, () => { L.destroy(); this.launch(g); }, {
         size: 8, sub: g.solo ? `${run.party[run.arcade.picker].name} plays` : 'everyone plays',
         fill: g.id === run.arcade.lastGame ? 0x2a2a3a : C.panelHi,
       });

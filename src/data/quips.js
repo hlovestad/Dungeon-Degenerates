@@ -263,3 +263,36 @@ export const DANI_QUIPS = [
 export const QUIP_COUNT = Object.values(QUIPS).reduce((n, q) =>
   n + q.afk.length + q.idle.length + q.win.length + q.lose.length + q.broke.length + q.rich.length
   + Object.values(q.roast).reduce((m, r) => m + r.length, 0), 0) + DANI_QUIPS.length;
+
+// STACK ATTACK (the card game). hit = got stuck with a plus pile,
+// stack = piled on, bounce = played RIGHT BACK AT YA, last = down to one card.
+export const CARD_QUIPS = {
+  haakon: {
+    hit: ['I can carry that many cards. Easily.', 'More weight. I love it.', 'Who did that? WHO?', 'Fine. Bulking season.'],
+    stack: ['Add it to the pile, big guy.', 'Stack it like plates.', 'Plus four. Like my reps.'],
+    bounce: ['RIGHT BACK AT YA! Sumo push!', 'Shoved out of the ring!', 'Returned to sender. With force.'],
+    last: ['One card. Spot me.', 'Final rep.'],
+    win: ['Hands empty. Arms full.', 'Scoreboard.'],
+  },
+  mike: {
+    hit: ['Daddy is going to hear about this.', 'My hand smells like defeat now.', 'That is a LOT of cards.', 'Why is it always me?'],
+    stack: ['Get sniffed. Plus two.', 'Goblin math says you draw more.', 'Stack it, cousin.'],
+    bounce: ['RIGHT BACK AT YA! Smell that?', 'Nope. Yours now.', 'The nose rejects this.'],
+    last: ['One card left. Do NOT tell daddy.', 'Last card, baby.'],
+    win: ['Pay the king.', 'The nose knows!'],
+  },
+  josh: {
+    hit: ['I foresaw this. I did not prevent it.', 'The universe is testing me.', 'Long Johnny would have stacked that.', 'Bad energy. VERY bad energy.'],
+    stack: ['The stars say draw more.', 'It was written. Plus two.', 'Cosmic plus.'],
+    bounce: ['RIGHT BACK AT YA! Karma!', 'The universe returns what you send.', 'Third eye saw that coming.'],
+    last: ['One card. Manifesting.', 'The stars are aligning.'],
+    win: ['It was written.', 'Namaste, losers.'],
+  },
+  griffin: {
+    hit: ["Don't tell Dani.", 'Bad beat. Brutal beat.', 'I wanted those. For a long con.', 'Double or nothing?'],
+    stack: ['Let it ride!', 'Raise.', 'All in. Plus four.'],
+    bounce: ['RIGHT BACK AT YA! House always wins!', 'Read em and weep.', 'Reverse the pot!'],
+    last: ['One card. Dani, watch this.', 'Last card. Let it ride.'],
+    win: ['Cash out!', 'Dani, did you see that?'],
+  },
+};

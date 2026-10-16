@@ -90,7 +90,7 @@ export class TriviaScene extends Phaser.Scene {
         this.btns.filter((b) => b.answer !== correct).slice(0, 2).forEach((b) => b.setEnabled(false));
         const j = run.party.findIndex((h) => h.race === 'josh');
         bubble(this, this.party.heroes[j].x, 150, 'My third eye says... not those two.', 1600);
-      }, { size: 8, fill: 0x2a3a6a, sub: isJosh ? 'Kill 2 wrong answers' : 'Pay Josh 10g, kill 2 wrong' });
+      }, { size: 8, fill: 0x2a3a6a, sub: isJosh ? 'Kills 2 wrong' : 'Costs 10g' });
       this.ui.add(eye);
     }
   }

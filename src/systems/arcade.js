@@ -11,6 +11,7 @@ import { QUIPS, DANI_QUIPS } from '../data/quips.js';
 // Every game the arcade can launch. `scene` + `data` is what the Arcade scene
 // hands to Phaser. `solo` games are played by the picker, everyone else watches.
 export const ARCADE_GAMES = [
+  { id: 'stack', name: 'STACK ATTACK', scene: 'Stack', data: {} },
   { id: 'quickdraw', name: 'QUICK DRAW', scene: 'Showdown', data: { game: 'quickdraw' } },
   { id: 'mash', name: 'MASH OFF', scene: 'Showdown', data: { game: 'mash' } },
   { id: 'highcard', name: 'HIGH CARD', scene: 'Showdown', data: { game: 'highcard' } },

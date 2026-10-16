@@ -10,7 +10,7 @@ import { run, rng, addGold, steal, giveCard } from '../systems/state.js';
 import { CARDS } from '../systems/cards.js';
 import { hubScene } from '../systems/arcade.js';
 import { sfx } from '../audio/sfx.js';
-import { fitHeight, poseKey } from '../art/assets.js';
+import { fitHeight, poseKey, faceKey } from '../art/assets.js';
 
 export const SHOWDOWNS = {
   quickdraw: { name: 'QUICK DRAW', rules: 'Wait for BONK!, then smack your corner first.\nTap too early and you are OUT.', kind: 'corners' },
@@ -102,7 +102,7 @@ export class ShowdownScene extends Phaser.Scene {
       g.strokeRect(c.x + 3, c.y + 3, 314, 174);
       const left = i % 2 === 0;
       const sx = left ? c.x + 40 : c.x + 280;
-      const spr = this.add.image(sx, c.y + 160, poseKey(this, run.party[i].race, 'idle')).setOrigin(0.5, 1);
+      const spr = this.add.image(sx, c.y + 160, faceKey(this, run.party[i].race)).setOrigin(0.5, 1);
       fitHeight(spr, 64);
       spr.setFlipX(!left);
       if (!active) spr.setAlpha(0.3);
@@ -461,7 +461,7 @@ export class ShowdownScene extends Phaser.Scene {
     const potT = text(this, 320, 70, `POT: ${pot}g`, { size: 12, ox: 0.5, color: T.cream, depth: 200 });
     this.layer.add([banner, potT]);
     [a, b].forEach((s, k) => {
-      const img = this.add.image(200 + k * 240, 230, poseKey(this, run.party[s].race, 'idle')).setOrigin(0.5, 1);
+      const img = this.add.image(200 + k * 240, 230, faceKey(this, run.party[s].race)).setOrigin(0.5, 1);
       fitHeight(img, 90);
       img.setFlipX(k === 1);
       this.layer.add(img);
@@ -662,7 +662,7 @@ export class ShowdownScene extends Phaser.Scene {
     this.layer.add(text(this, 320, 54, `${this.def.name}: RESULTS`, { size: 12, ox: 0.5, color: T.gold }));
     res.forEach((r, k) => {
       const y = 86 + k * 40;
-      const s = this.add.image(150, y + 28, poseKey(this, run.party[r.seat].race, 'idle')).setOrigin(0.5, 1);
+      const s = this.add.image(150, y + 28, faceKey(this, run.party[r.seat].race)).setOrigin(0.5, 1);
       fitHeight(s, 34);
       this.layer.add(s);
       this.layer.add(text(this, 176, y + 4, `${k + 1}. ${this.name(r.seat)}`, { size: 10, color: this.color(r.seat) }));
