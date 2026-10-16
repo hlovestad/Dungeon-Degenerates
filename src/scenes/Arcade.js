@@ -115,7 +115,7 @@ export class ArcadeScene extends Phaser.Scene {
     n.snapshot = () => ({ scene: 'Arcade', init: { hub: this.hubState(), items: [] } });
     n.send({ t: 'go', scene: 'Arcade', init: { hub: this.hubState(), items } });
     this.offs.push(n.on('hubact', (m) => {
-      if (m.kind === 'trivia' && this.triviaWait && m.seat === run.arcade.picker) { this.triviaWait({ theme: m.theme, count: m.count }); return; }
+      if (m.kind === 'trivia' && this.triviaWait && m.seat === run.arcade.picker) { this.triviaWait({ theme: m.theme, count: m.count, secs: m.secs }); return; }
       if (this.busy || m.seat !== run.arcade.picker) return;
       if (m.kind === 'spin') this.spin();
       else if (m.kind === 'pick') { const g = A.gameById(m.game); if (g) this.choose(g); }
@@ -133,7 +133,7 @@ export class ArcadeScene extends Phaser.Scene {
     }));
     this.offs.push(n.on('hubspin', (m) => this.showSpin(A.gameById(m.game), m.picked)));
     this.offs.push(n.on('hubtrivia', () => {
-      if (run.arcade.picker === this.me) this.triviaMenu((o) => this.net.send({ t: 'hubact', seat: this.me, kind: 'trivia', ...o }));
+      if (run.arcade.picker === this.me) this.triviaMenu((o) => { this.net.send({ t: 'hubact', seat: this.me, kind: 'trivia', ...o }); this.waitNote('STARTING...'); });
       else this.waitNote(`${run.party[run.arcade.picker].name.toUpperCase()} IS PICKING A TRIVIA THEME...`);
     }));
     this.offs.push(n.on('lost', (e) => this.lost(e.reason)));
@@ -226,6 +226,7 @@ export class ArcadeScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ chatter
   greet() {
+    this.autoTrivia();
     if (run.arcade.round === 0 && this.role !== 'client') {
       this.say(this.seats[0], rng.pick(['Welcome to the goblin arcade, degenerates.', 'Eight games. Winner gets bragging rights forever.', "Who's ready to lose?"]));
     }
@@ -284,6 +285,13 @@ export class ArcadeScene extends Phaser.Scene {
     if (over) { this.final(over.ranking); return; }
     this.drawBar();
     this.setBusy(false);
+    this.autoTrivia();
+  }
+
+  // TRIVIA NIGHT: straight into the next picker's theme menu
+  autoTrivia() {
+    if (run.arcade.only !== 'trivia' || this.role === 'client' || this.over) return;
+    this.time.delayedCall(900, () => { if (!this.busy && !this.over) this.choose(A.gameById('trivia')); });
   }
 
   async showResult(r) {
@@ -352,22 +360,23 @@ export class ArcadeScene extends Phaser.Scene {
     if (!this.isHuman(picker)) {
       // a bot picks: usually everything, sometimes a theme
       const themed = THEMES.filter((t) => t.qs && t.qs.length >= 10);
-      go({ theme: rng.chance(0.5) ? 'mixed' : rng.pick(themed).id, count: rng.pick([10, 10, 15]) });
+      go({ theme: rng.chance(0.5) ? 'mixed' : rng.pick(themed).id, count: rng.pick([10, 10, 15]), secs: 20 });
       return;
     }
     this.triviaWait = go;
     this.net.send({ t: 'hubtrivia' });
     if (picker === this.me) this.triviaMenu(go);
-    else this.waitNote(`${run.party[picker].name.toUpperCase()} IS PICKING A TRIVIA THEME...`);
-    // nobody answers in 30s: everything, 10 questions
-    this.time.delayedCall(30000, () => { if (this.triviaWait === go) go({ theme: 'mixed', count: 10 }); });
+    else this.waitNote(`${run.party[picker].name.toUpperCase()} IS PICKING A TRIVIA THEME...`, () => this.triviaMenu(go));
+    // nobody answers in 90s: everything, 10 questions
+    this.time.delayedCall(90000, () => { if (this.triviaWait === go) go({ theme: 'mixed', count: 10, secs: 20 }); });
   }
 
-  waitNote(str) {
+  waitNote(str, hostPick) {
     this.closeMenu();
     const L = (this.menu = this.add.container(0, 0).setDepth(900));
-    L.add(panel(this, 120, 140, 400, 60, { border: C.gold }));
-    L.add(text(this, 320, 170, str, { size: 8, ox: 0.5, oy: 0.5, color: T.cream, wrap: 380, align: 'center' }));
+    L.add(panel(this, 120, 130, 400, hostPick ? 110 : 60, { border: C.gold }));
+    L.add(text(this, 320, 160, str, { size: 8, ox: 0.5, oy: 0.5, color: T.cream, wrap: 380, align: 'center' }));
+    if (hostPick) L.add(button(this, 220, 184, 200, 40, 'HOST PICKS INSTEAD', hostPick, { size: 8, fill: 0x2a3a6a }));
   }
 
   closeMenu() { this.menu?.destroy(); this.menu = null; this.spinBox?.destroy(); this.spinBox = null; }
@@ -376,57 +385,45 @@ export class ArcadeScene extends Phaser.Scene {
     this.closeMenu();
     this.setBusy(true);
     const L = (this.menu = this.add.container(0, 0).setDepth(900));
-    let theme = this.lastTheme || 'mixed', count = this.lastCount || 10;
+    let theme = this.lastTheme || 'mixed', count = this.lastCount || 10, secs = this.lastSecs || 20;
+    const PER = 15;
+    let page = Math.floor(Math.max(0, THEMES.findIndex((t) => t.id === theme)) / PER);
+    const pages = Math.ceil(THEMES.length / PER);
     const draw = () => {
       L.removeAll(true);
-      L.add(dimmer(this, 0.75, 0));
-      L.add(panel(this, 8, 8, 624, 344));
-      L.add(text(this, 320, 20, 'SKULL TRIVIA: PICK A THEME', { size: 12, ox: 0.5, color: T.gold }));
-      THEMES.forEach((t, i) => {
+      L.add(dimmer(this, 0.8, 0));
+      L.add(panel(this, 8, 6, 624, 348));
+      L.add(text(this, 320, 16, 'SKULL TRIVIA: PICK A THEME', { size: 10, ox: 0.5, color: T.gold }));
+      THEMES.slice(page * PER, (page + 1) * PER).forEach((t, i) => {
         const col = i % 5, row = Math.floor(i / 5);
         const n = t.qs ? t.qs.length : questionPool('mixed').length;
-        L.add(button(this, 18 + col * 122, 40 + row * 54, 116, 48, t.name, () => { theme = t.id; sfx('select'); draw(); }, {
+        L.add(button(this, 18 + col * 122, 32 + row * 50, 116, 46, t.name, () => { theme = t.id; sfx('select'); draw(); }, {
           size: 8, sub: `${n} questions`, fill: theme === t.id ? 0x5a3f7a : C.panelHi,
         }));
       });
-      L.add(text(this, 18, 270, 'QUESTIONS:', { size: 8, oy: 0.5, color: T.cream }));
+      // pages
+      if (pages > 1) {
+        L.add(button(this, 18, 184, 70, 30, '< PREV', () => { page = (page + pages - 1) % pages; draw(); }, { size: 8 }));
+        L.add(text(this, 320, 199, `PAGE ${page + 1} OF ${pages}   (${THEMES.length - 1} THEMES)`, { size: 8, ox: 0.5, oy: 0.5, color: T.grey }));
+        L.add(button(this, 552, 184, 70, 30, 'NEXT >', () => { page = (page + 1) % pages; draw(); }, { size: 8 }));
+      }
+      L.add(text(this, 18, 240, 'QUESTIONS:', { size: 8, oy: 0.5, color: T.cream }));
       COUNTS.forEach((c, k) => {
-        L.add(button(this, 110 + k * 66, 252, 60, 36, String(c), () => { count = c; sfx('select'); draw(); }, { size: 10, fill: count === c ? 0x2a5a3a : C.panelHi }));
+        L.add(button(this, 112 + k * 60, 222, 54, 36, String(c), () => { count = c; sfx('select'); draw(); }, { size: 10, fill: count === c ? 0x2a5a3a : C.panelHi }));
       });
-      L.add(button(this, 400, 300, 220, 44, 'START TRIVIA', () => {
-        this.lastTheme = theme; this.lastCount = count;
+      L.add(text(this, 18, 288, 'TIME TO\nANSWER:', { size: 8, oy: 0.5, color: T.cream, lineSpacing: 3 }));
+      [15, 20, 30].forEach((t, k) => {
+        L.add(button(this, 112 + k * 60, 270, 54, 36, `${t}s`, () => { secs = t; sfx('select'); draw(); }, { size: 10, fill: secs === t ? 0x2a5a3a : C.panelHi }));
+      });
+      const name = THEMES.find((t) => t.id === theme)?.name || 'EVERYTHING';
+      L.add(text(this, 512, 236, `${name}\n${count} questions, ${secs}s each`, { size: 8, ox: 0.5, align: 'center', color: T.gold, lineSpacing: 4 }));
+      L.add(button(this, 410, 290, 210, 52, 'START TRIVIA', () => {
+        this.lastTheme = theme; this.lastCount = count; this.lastSecs = secs;
         this.closeMenu();
-        cb({ theme, count });
-      }, { size: 10, fill: 0x2a5a3a }));
+        cb({ theme, count, secs });
+      }, { size: 12, fill: 0x2a5a3a }));
     };
     draw();
-  }
-
-  showSpin(pick, picked) {
-    this.setBusy(true);
-    return new Promise((done) => {
-      this.spinBox?.destroy();
-      const L = (this.spinBox = this.add.container(0, 0).setDepth(850));
-      L.add(panel(this, 150, 110, 340, 80, { border: C.gold }));
-      L.add(text(this, 320, 122, `${run.party[run.arcade.picker].name.toUpperCase()} ${picked ? 'PICKS' : 'SPINS'}...`, { size: 8, ox: 0.5, color: T.grey }));
-      const name = text(this, 320, 154, '', { size: 14, ox: 0.5, oy: 0.5, color: T.gold });
-      L.add(name);
-      const names = A.ARCADE_GAMES.map((g) => g.name);
-      let k = Math.floor(Math.random() * names.length);
-      const steps = picked ? 1 : 18;
-      let n = 0;
-      const tick = () => {
-        n++;
-        name.setText(n >= steps ? pick.name : names[k++ % names.length]);
-        sfx(n >= steps ? 'jackpot' : 'step');
-        if (n < steps) this.time.delayedCall(50 + n * n * 1.1, tick);
-        else {
-          this.tweens.add({ targets: name, scale: 1.25, duration: 160, yoyo: true });
-          this.time.delayedCall(1100, done);
-        }
-      };
-      tick();
-    });
   }
 
   pickMenu() {

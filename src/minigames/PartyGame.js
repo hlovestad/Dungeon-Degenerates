@@ -196,7 +196,9 @@ export class PartyGameScene extends Phaser.Scene {
     this.st.phase = 'reveal';
     if (r === 'done') G.payOut(this.st, this.P);
     this.broadcast();
-    this.after(REVEAL_MS[this.st.id] || 2600, () => {
+    this.revealNext = () => {
+      this.revealNext = null;
+      this.clearTimers();
       if (r === 'next') {
         this.st.round++;
         this.hostPlay();
@@ -205,7 +207,21 @@ export class PartyGameScene extends Phaser.Scene {
         this.broadcast();
         this.after(RESULTS_MS, () => this.backToArcade());
       }
-    });
+    };
+    // trivia: argue as long as you like, the host taps NEXT (or a minute passes)
+    this.after(this.st.id === 'trivia' ? 60000 : REVEAL_MS[this.st.id] || 2600, () => this.revealNext?.());
+  }
+
+  // host's END ROUND (trivia): stop now, pay what everyone has, back to the arcade
+  endRound() {
+    if (this.role !== 'host' || this.st.phase === 'done' || this.st.phase === 'intro') return;
+    this.clearTimers();
+    this.revealNext = null;
+    G.endTriviaEarly(this.st);
+    G.payOut(this.st, this.P);
+    this.st.phase = 'done';
+    this.broadcast();
+    this.after(RESULTS_MS, () => this.backToArcade());
   }
 
   backToArcade() {
@@ -609,7 +625,7 @@ export class PartyGameScene extends Phaser.Scene {
       L.add(bar);
       const tick = this.time.addEvent({ delay: 60, loop: true, callback: () => {
         if (!bar.active) { tick.remove(); return; }
-        const left = Math.max(0, 1 - (this.time.now - this.t0) / 12000);
+        const left = Math.max(0, 1 - (this.time.now - this.t0) / ((st.data.secs || 20) * 1000));
         bar.clear().fillStyle(left > 0.3 ? C.gold : C.red, 1).fillRect(40, 294, 560 * left, 5);
       } });
       const josh = !this.spectator && run.party[this.me]?.race === 'josh';
@@ -617,9 +633,19 @@ export class PartyGameScene extends Phaser.Scene {
         this.ctl.add(button(this, 250, 306, 140, 44, 'THIRD EYE', () => { this.eyeUsed = true; this.eyeOn = true; sfx('magic'); this.draw_trivia(false); }, { size: 8, fill: 0x2a3a6a, sub: 'once per game' }));
       }
     }
-    if (rev && fresh) {
-      sfx(rev.right.includes(this.me) ? 'coin' : 'miss');
-      if (rev.fastest !== null) L.add(text(this, 320, 304, `FASTEST: ${this.name(rev.fastest).toUpperCase()} (+5)`, { size: 8, ox: 0.5, color: T.gold }));
+    if (rev) {
+      if (fresh) sfx(rev.right.includes(this.me) ? 'coin' : 'miss');
+      if (rev.fastest !== null) L.add(text(this, 40, 300, `FASTEST: ${this.name(rev.fastest).toUpperCase()} (+5)`, { size: 8, color: T.gold }));
+      const last = st.round + 1 >= st.rounds;
+      if (this.role === 'host') {
+        this.ctl.add(button(this, 420, 292, 180, 50, last ? 'SEE RESULTS' : 'NEXT QUESTION', () => { sfx('select'); this.revealNext?.(); }, { size: 10, fill: 0x2a5a3a, sub: 'when you are done arguing' }));
+      } else {
+        L.add(text(this, 600, 310, 'Argue. The host taps NEXT.', { size: 8, ox: 1, color: T.grey }));
+      }
+    }
+    // the host can end the round any time (e.g. to switch themes)
+    if (this.role === 'host') {
+      this.ctl.add(button(this, 4, 6, 92, 26, 'END ROUND', () => this.endRound(), { size: 8, fill: 0x6a2a3a }));
     }
   }
 

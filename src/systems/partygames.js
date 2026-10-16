@@ -309,12 +309,13 @@ export const GAMES = {
 
   trivia: {
     name: 'SKULL TRIVIA', kind: 'pick',
-    rules: 'Everyone answers on their own phone. 12 seconds a question.\nRight: +10 points. Fastest right answer: +5 more. Josh can open his third eye once.',
-    playMs: () => 12000,
+    rules: 'Everyone answers on their own phone.\nRight: +10 points. Fastest right answer: +5 more. Josh can open his third eye once.\nAfter each answer, the host taps NEXT when you are done arguing.',
+    playMs: (st) => (st.data.secs || 20) * 1000,
     setup(st, rng, P) {
       // the picker chose a theme and a length (P.opts); questions don't repeat in a night
       const opts = P.opts || {};
       const count = [10, 15, 20, 30].includes(opts.count) ? opts.count : 10;
+      st.data.secs = [15, 20, 30].includes(opts.secs) ? opts.secs : 20; // time to answer
       const used = new Set(P.used || []);
       let pool = questionPool(opts.theme || 'mixed');
       let fresh = pool.filter((t) => !used.has(t.id));
@@ -343,7 +344,7 @@ export const GAMES = {
     bot(st, seat, rng) {
       const c = st._h.correct[st.round];
       const a = rng.chance(0.55) ? c : rng.int(0, 3);
-      const ms = rng.int(2000, 8500);
+      const ms = rng.int(2000, Math.min(12000, (st.data.secs || 20) * 600));
       return { ms, d: { a, ms } };
     },
     resolve(st) {
@@ -543,6 +544,13 @@ export function startPlay(st) {
 }
 
 // Apply results: gold changes for anything not already paid during the game.
+// Trivia: stop now and pay out the scores so far (the host's END ROUND).
+export function endTriviaEarly(st) {
+  st.results = st.seats.slice().sort((a, b) => st.data.score[b] - st.data.score[a])
+    .map((s) => ({ seat: s, gold: Math.ceil(st.data.score[s] / 3), note: `${st.data.score[s]} pts` }));
+  st.data.ended = st.round + 1;
+}
+
 export function payOut(st, P) {
   st.results.forEach((r) => {
     if (r.gold) r.gold = P.addGold(r.seat, r.gold);
