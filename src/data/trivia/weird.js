@@ -1,6 +1,5 @@
 // Trivia theme: Weird But True. a[0] is the correct answer.
 export default [
-  { q: 'How many hearts does an octopus have?', a: ['3', '1', '2', '8'] },
   { q: 'Which non-primate animal has fingerprints remarkably similar to humans?', a: ['Koala', 'Raccoon', 'Sloth', 'Otter'] },
   { q: 'Which of these existed first?', a: ['Oxford University', 'Aztec Tenochtitlan', 'Machu Picchu', 'The Ming Dynasty'] },
   { q: 'Cleopatra lived closer in time to the Moon landing than to the building of what?', a: ['The Great Pyramid', 'The Colosseum', 'The Parthenon', 'The Great Wall'] },
@@ -53,9 +52,12 @@ export default [
   { q: 'Before it became a mouthwash, Listerine was first sold as what?', a: ['Surgical antiseptic', 'Hair tonic', 'Cough syrup', 'Soft drink'] },
   { q: 'Apples float in water because they are about 25 percent what?', a: ['Air', 'Sugar', 'Oil', 'Fiber'] },
   { q: 'Much of the city of Venice is built on top of what?', a: ['Wooden pilings', 'Steel beams', 'Floating rafts', 'Volcanic rock'] },
-  { q: 'Roughly how many times a year is the Empire State Building hit by lightning?', a: ['About 20', 'About 2', 'About 200', 'Never'] },
   { q: 'Turritopsis dohrnii, which can revert to a younger form, is the "immortal" what?', a: ['Jellyfish', 'Lobster', 'Tortoise', 'Sponge'] },
   { q: 'The first American alarm clock, built in 1787, could only ring at what time?', a: ['4 a.m.', '6 a.m.', 'Noon', 'Midnight'] },
   { q: 'Which is the only letter that does not appear in any US state name?', a: ['Q', 'X', 'Z', 'J'] },
   { q: "What color is a giraffe's tongue?", a: ['Dark purple', 'Pink', 'Bright red', 'Yellow'] },
+  { q: 'Lake Hillier, a lake that is naturally bubblegum pink, is in which country?', a: ['Australia', 'Canada', 'Iceland', 'Peru'] },
+  { q: 'There is a real village named Hell in which Scandinavian country?', a: ['Norway', 'Sweden', 'Denmark', 'Finland'] },
+  { q: 'Honeybees tell each other where to find food by doing what?', a: ['A waggle dance', 'Buzzing a tune', 'Leaving scent dots', 'Flashing wings'] },
+  { q: 'Male emperor penguins keep their eggs warm by balancing them where?', a: ['On their feet', 'Under a wing', 'In a snow nest', 'In their beak'] },
 ];
