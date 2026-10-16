@@ -42,7 +42,6 @@ export default [
   { q: 'In Ratatouille, what is the name of the rat who wants to be a chef?', a: ['Remy', 'Emile', 'Linguini', 'Gusteau'] },
   { q: 'Who voiced Maui in Moana?', a: ['Dwayne Johnson', 'Jason Momoa', 'Vin Diesel', 'Kevin Hart'] },
   { q: 'What is the name of the small dragon who helps Mulan?', a: ['Mushu', 'Cri-Kee', 'Khan', 'Shan Yu'] },
-  { q: 'In Beauty and the Beast, what is the name of Belle\'s father?', a: ['Maurice', 'Philippe', 'Gaston', 'Cogsworth'] },
   { q: 'What does the phrase Hakuna Matata mean in The Lion King?', a: ['No worries', 'Live free', 'Eat bugs', 'Be happy'] },
   { q: 'In Tangled, what is the name of Rapunzel\'s chameleon?', a: ['Pascal', 'Maximus', 'Meeko', 'Figaro'] },
   { q: 'Who is the villain in Disney\'s Hercules?', a: ['Hades', 'Zeus', 'Ares', 'Pain'] },

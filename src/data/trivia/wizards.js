@@ -1,7 +1,7 @@
 // Trivia theme: Wizards & Hobbits. a[0] is the correct answer.
 export default [
   // Easy
-  { q: 'What is the name of Harry Potter\'s snowy owl?', a: ['Hedwig', 'Errol', 'Pigwidgeon', 'Hermes'] },
+  { q: 'Which Hogwarts house is Luna Lovegood in?', a: ['Ravenclaw', 'Hufflepuff', 'Gryffindor', 'Slytherin'] },
   { q: 'Which Hogwarts house is Harry Potter sorted into?', a: ['Gryffindor', 'Slytherin', 'Ravenclaw', 'Hufflepuff'] },
   { q: 'What shape is the scar on Harry Potter\'s forehead?', a: ['A lightning bolt', 'A star', 'A crescent moon', 'A cross'] },
   { q: 'Which platform at King\'s Cross does the Hogwarts Express leave from?', a: ['9 3/4', '7 1/2', '10 1/4', '8 3/4'] },
@@ -15,7 +15,7 @@ export default [
   { q: 'Dobby is what kind of magical creature?', a: ['A house-elf', 'A goblin', 'A gnome', 'A pixie'] },
   { q: 'What is the name of the wizard bank run by goblins?', a: ['Gringotts', 'Ollivanders', 'Gladrags', 'Borgin and Burkes'] },
   { q: 'What is the name of the wizard prison guarded by Dementors?', a: ['Azkaban', 'Nurmengard', 'Durmstrang', 'Knockturn'] },
-  { q: 'What is the name of Frodo\'s loyal gardener and best friend?', a: ['Samwise Gamgee', 'Meriadoc Brandybuck', 'Peregrin Took', 'Fredegar Bolger'] },
+  { q: 'Which hobbit inherits the One Ring from Bilbo?', a: ['Frodo Baggins', 'Samwise Gamgee', 'Pippin Took', 'Merry Brandybuck'] },
   { q: 'What is the name of the homeland of the hobbits?', a: ['The Shire', 'Rivendell', 'Rohan', 'Bree'] },
   { q: 'Which elf archer is a member of the Fellowship of the Ring?', a: ['Legolas', 'Elrond', 'Haldir', 'Glorfindel'] },
   { q: 'Which dwarf is a member of the Fellowship of the Ring?', a: ['Gimli', 'Thorin', 'Balin', 'Gloin'] },
@@ -27,7 +27,7 @@ export default [
   { q: 'What is the Iron Throne made of?', a: ['Swords', 'Dragon bones', 'Shields', 'Spears'] },
   { q: 'Who wrote A Song of Ice and Fire, the books behind Game of Thrones?', a: ['George R.R. Martin', 'J.R.R. Tolkien', 'Robert Jordan', 'Patrick Rothfuss'] },
   // Medium
-  { q: 'What subject does Snape teach at Hogwarts for Harry\'s first five years?', a: ['Potions', 'Defense Against Dark Arts', 'Transfiguration', 'Herbology'] },
+  { q: 'What subject does Snape teach at Hogwarts for Harry\'s first five years?', a: ['Potions', 'Charms', 'Transfiguration', 'Herbology'] },
   { q: 'What is the name of Hagrid\'s giant three-headed dog?', a: ['Fluffy', 'Fang', 'Norbert', 'Buckbeak'] },
   { q: 'What item of clothing sets Dobby free?', a: ['A sock', 'A hat', 'A scarf', 'A glove'] },
   { q: 'What form does Harry\'s Patronus take?', a: ['A stag', 'A doe', 'A lion', 'A phoenix'] },

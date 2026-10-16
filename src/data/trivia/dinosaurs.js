@@ -31,7 +31,6 @@ export default [
   { q: 'About how long ago did the non-bird dinosaurs go extinct?', a: ['66 million years', '6.5 million years', '650 million years', '10,000 years'] },
   { q: 'What is the main accepted cause of the dinosaur extinction?', a: ['Asteroid impact', 'Global ice age', 'A plague', 'Solar flare'] },
   { q: 'What is the name of the crater left by the dinosaur-killing asteroid?', a: ['Chicxulub', 'Barringer', 'Vredefort', 'Sudbury'] },
-  { q: 'The dinosaur-killing asteroid crater lies under which peninsula?', a: ['Yucatan', 'Baja California', 'Florida', 'Iberian'] },
   { q: 'What was the single supercontinent when dinosaurs first appeared?', a: ['Pangaea', 'Rodinia', 'Lemuria', 'Zealandia'] },
   { q: 'Stones some dinosaurs swallowed to help grind food are called what?', a: ['Gastroliths', 'Coprolites', 'Geodes', 'Otoliths'] },
   { q: 'Which Ice Age beast was a giant ground sloth the size of an elephant?', a: ['Megatherium', 'Megalodon', 'Smilodon', 'Mastodon'] },

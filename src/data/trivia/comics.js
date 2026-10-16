@@ -36,7 +36,7 @@ export default [
   { q: 'Venom is what kind of alien life form?', a: ['A symbiote', 'A Skrull', 'A Kree', 'A Chitauri'] },
   { q: 'What is the name of Marvel\'s shapeshifting alien race?', a: ['Skrulls', 'Kree', 'Chitauri', 'Badoon'] },
   { q: 'Who was the very first Robin?', a: ['Dick Grayson', 'Jason Todd', 'Tim Drake', 'Damian Wayne'] },
-  { q: 'Who is Superman\'s Kryptonian birth name?', a: ['Kal-El', 'Jor-El', 'Zod', 'Kara Zor-El'] },
+  { q: 'What is Superman\'s Kryptonian birth name?', a: ['Kal-El', 'Jor-El', 'Zod', 'Kara Zor-El'] },
   { q: 'Which X-Men villain controls magnetism?', a: ['Magneto', 'Mystique', 'Sabretooth', 'Apocalypse'] },
   { q: 'Who played Star-Lord in Guardians of the Galaxy?', a: ['Chris Pratt', 'Chris Pine', 'Paul Rudd', 'Zachary Levi'] },
   { q: 'Daredevil protects which New York neighborhood?', a: ['Hell\'s Kitchen', 'Harlem', 'Brooklyn Heights', 'Queens'] },

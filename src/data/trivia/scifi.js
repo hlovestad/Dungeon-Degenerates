@@ -25,7 +25,7 @@ export default [
   { q: 'In Terminator 2, what model is the liquid metal Terminator?', a: ['T-1000', 'T-800', 'T-X', 'T-850'] },
   { q: 'Who played Morpheus in The Matrix?', a: ['Laurence Fishburne', 'Samuel L. Jackson', 'Denzel Washington', 'Morgan Freeman'] },
   { q: 'Who wrote the novel Dune?', a: ['Frank Herbert', 'Isaac Asimov', 'Arthur C. Clarke', 'Robert Heinlein'] },
-  { q: 'In The Hitchhiker\'s Guide to the Galaxy, what is the answer to life, the universe and everything?', a: ['42', '7', '64', '101'] },
+  { q: 'In Hitchhiker\'s Guide, Earth is demolished to make way for what?', a: ['A hyperspace bypass', 'A mining colony', 'An alien zoo', 'A spaceport'] },
   // Medium
   { q: 'In Back to the Future, how much power does the time machine need?', a: ['1.21 gigawatts', '12.1 gigawatts', '2.1 gigawatts', '1.21 megawatts'] },
   { q: 'What is the last name of Marty\'s bully Biff in Back to the Future?', a: ['Tannen', 'Tanner', 'Thompson', 'Tilley'] },
@@ -38,7 +38,7 @@ export default [
   { q: 'What is the name of the commercial towing ship in Alien (1979)?', a: ['Nostromo', 'Sulaco', 'Prometheus', 'Covenant'] },
   { q: 'Who directed Aliens (1986)?', a: ['James Cameron', 'Ridley Scott', 'David Fincher', 'John Carpenter'] },
   { q: 'In The Terminator, who is sent back in time to protect Sarah Connor?', a: ['Kyle Reese', 'John Connor', 'Miles Dyson', 'Ed Traxler'] },
-  { q: 'What is the giant desert planet in Dune also called?', a: ['Arrakis', 'Caladan', 'Giedi Prime', 'Kaitain'] },
+  { q: 'In Dune, what giant creatures roam the desert sands?', a: ['Sandworms', 'Sand dragons', 'Rock crabs', 'Dust whales'] },
   { q: 'What is the precious spice in Dune called?', a: ['Melange', 'Dilithium', 'Kyber', 'Unobtanium'] },
   { q: 'Which Star Wars bounty hunter\'s DNA was used to make the clone army?', a: ['Jango Fett', 'Boba Fett', 'Bossk', 'Cad Bane'] },
   { q: 'What color is Mace Windu\'s lightsaber?', a: ['Purple', 'Green', 'Blue', 'Yellow'] },
@@ -49,7 +49,7 @@ export default [
   { q: 'Who wrote the Foundation series?', a: ['Isaac Asimov', 'Philip K. Dick', 'Ray Bradbury', 'Frank Herbert'] },
   { q: 'In Blade Runner, what are the bioengineered humans called?', a: ['Replicants', 'Cylons', 'Synths', 'Hosts'] },
   { q: 'Who played Rick Deckard in Blade Runner (1982)?', a: ['Harrison Ford', 'Rutger Hauer', 'Kurt Russell', 'Mel Gibson'] },
-  { q: 'What do the Cylons want to wipe out in Battlestar Galactica?', a: ['Humanity', 'The Daleks', 'Other robots', 'The Borg'] },
+  { q: 'What are the robotic enemies in Battlestar Galactica called?', a: ['Cylons', 'Daleks', 'Sentinels', 'Decepticons'] },
   { q: 'From the outside, what does the Doctor\'s TARDIS look like?', a: ['A police box', 'A garden shed', 'A bus shelter', 'An ice cream truck'] },
   { q: 'Who played Cooper in Interstellar?', a: ['Matthew McConaughey', 'Matt Damon', 'Christian Bale', 'Mark Wahlberg'] },
   // Hard
@@ -60,7 +60,7 @@ export default [
   { q: 'What is the name of the science officer revealed as an android in Alien (1979)?', a: ['Ash', 'Bishop', 'David', 'Call'] },
   { q: 'In Back to the Future Part II, what does Doc\'s Mr. Fusion run on?', a: ['Household garbage', 'Plutonium', 'Lightning', 'Seawater'] },
   { q: 'In The Matrix, what does the Oracle offer Neo when they first meet?', a: ['A cookie', 'A cup of tea', 'A spoon', 'A red pill'] },
-  { q: 'Who wrote the novel Ender\'s Game?', a: ['Orson Scott Card', 'Ursula K. Le Guin', 'Larry Niven', 'Ray Bradbury'] },
+  { q: 'Who wrote the novel 2001: A Space Odyssey?', a: ['Arthur C. Clarke', 'Isaac Asimov', 'Philip K. Dick', 'Ray Bradbury'] },
   { q: 'Where is the Rebel base in A New Hope?', a: ['Yavin 4', 'Hoth', 'Dantooine', 'Endor'] },
   { q: 'What was Doc Brown\'s dog named in the original Back to the Future?', a: ['Einstein', 'Copernicus', 'Newton', 'Tesla'] },
 ];
