@@ -33,6 +33,7 @@ export class ArcadeScene extends Phaser.Scene {
     this.offs = [];
     this.over = false; // (Phaser reuses this object: reset per visit)
     this.menu = null;
+    this.spinBox = null;
     this.triviaWait = null;
     this.idle = 0;
     this.busy = false;
@@ -369,7 +370,7 @@ export class ArcadeScene extends Phaser.Scene {
     L.add(text(this, 320, 170, str, { size: 8, ox: 0.5, oy: 0.5, color: T.cream, wrap: 380, align: 'center' }));
   }
 
-  closeMenu() { this.menu?.destroy(); this.menu = null; }
+  closeMenu() { this.menu?.destroy(); this.menu = null; this.spinBox?.destroy(); this.spinBox = null; }
 
   triviaMenu(cb) {
     this.closeMenu();
@@ -404,7 +405,8 @@ export class ArcadeScene extends Phaser.Scene {
   showSpin(pick, picked) {
     this.setBusy(true);
     return new Promise((done) => {
-      const L = this.add.container(0, 0).setDepth(850);
+      this.spinBox?.destroy();
+      const L = (this.spinBox = this.add.container(0, 0).setDepth(850));
       L.add(panel(this, 150, 110, 340, 80, { border: C.gold }));
       L.add(text(this, 320, 122, `${run.party[run.arcade.picker].name.toUpperCase()} ${picked ? 'PICKS' : 'SPINS'}...`, { size: 8, ox: 0.5, color: T.grey }));
       const name = text(this, 320, 154, '', { size: 14, ox: 0.5, oy: 0.5, color: T.gold });

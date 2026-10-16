@@ -45,7 +45,10 @@ export const COUNTS = [10, 15, 20, 30];
 // Every question with a stable id ("movies:12") so a night can avoid repeats.
 export function questionPool(themeId) {
   const list = themeId === 'mixed' ? THEMES.filter((t) => t.qs && t.id !== 'degenerates') : THEMES.filter((t) => t.id === themeId);
-  return list.flatMap((t) => t.qs.map((x, k) => ({ ...x, id: `${t.id}:${k}`, theme: t.name })));
+  const seen = new Set();
+  // the same question can live in two themes (e.g. history + space): only once in a mix
+  return list.flatMap((t) => t.qs.map((x, k) => ({ ...x, id: `${t.id}:${k}`, theme: t.name })))
+    .filter((x) => { const key = x.q.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; });
 }
 export const themeName = (id) => THEMES.find((t) => t.id === id)?.name || 'EVERYTHING';
 export const totalQuestions = () => THEMES.reduce((n, t) => n + (t.qs ? t.qs.length : 0), 0);
