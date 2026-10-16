@@ -52,7 +52,8 @@ export class PartyGameScene extends Phaser.Scene {
       const seats = data.seats;
       seats.forEach((s) => { if (s >= 4) ensureGuest(s, GUESTS[s - 4]); });
       const humans = seats.filter((s) => this.net.seats[s]);
-      this.P = { party: run.party, addGold, steal, picker: run.arcade?.picker ?? 0 };
+      if (run.arcade && !run.arcade.usedQ) run.arcade.usedQ = [];
+      this.P = { party: run.party, addGold, steal, picker: run.arcade?.picker ?? 0, opts: data.opts || {}, used: run.arcade?.usedQ };
       this.st = G.newGame(data.game, seats, humans, rng, this.P);
       this.def = G.GAMES[this.st.id];
       this.net.snapshot = () => ({ scene: 'PartyGame', init: this.packet() });
@@ -73,7 +74,7 @@ export class PartyGameScene extends Phaser.Scene {
     // stage
     background(this, 'bg_goblin_casino');
     this.add.rectangle(320, 180, 2000, 360, C.ink, 0.55).setDepth(-5);
-    this.title = text(this, 320, 10, this.def.name, { size: 12, ox: 0.5, color: T.gold, strokeThickness: 5, depth: 50 });
+    this.title = text(this, 320, 10, this.st.id === 'trivia' && this.st.data.theme ? `${this.def.name}: ${this.st.data.theme}` : this.def.name, { size: 12, ox: 0.5, color: T.gold, strokeThickness: 5, depth: 50 });
     this.faces = {};
     this.status = {};
     const n = this.st.seats.length;
@@ -577,7 +578,7 @@ export class PartyGameScene extends Phaser.Scene {
     this.clear();
     const L = this.layer;
     L.add(panel(this, 40, 116, 560, 50, { alpha: 0.95 }));
-    L.add(text(this, 52, 122, `QUESTION ${st.round + 1} OF ${st.rounds}`, { size: 8, color: T.gold }));
+    L.add(text(this, 52, 122, `QUESTION ${st.round + 1} OF ${st.rounds}   ${q.theme || st.data.theme || ''}`, { size: 8, color: T.gold }));
     L.add(text(this, 52, 138, q.q, { size: 8, wrap: 536, color: T.cream, lineSpacing: 4 }));
     const rev = st.phase === 'reveal' ? st.data.reveal : null;
     const pick = this.mine.a ?? st.inputs[this.me]?.a;

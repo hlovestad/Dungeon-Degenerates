@@ -21,7 +21,7 @@
 //   turnSeat(st)        turn-based games: whose move it is (else undefined)
 
 import { RACES } from '../data/races.js';
-import { TRIVIA } from '../data/trivia.js';
+import { questionPool, themeName } from '../data/trivia/index.js';
 
 // ------------------------------------------------------------------ helpers
 const N = (P, s) => P.party[s].name;
@@ -309,18 +309,28 @@ export const GAMES = {
 
   trivia: {
     name: 'SKULL TRIVIA', kind: 'pick',
-    rules: 'Three questions. Everyone answers on their own phone.\nRight: +10. Fastest right answer: +5 more. Josh can open his third eye once.',
+    rules: 'Everyone answers on their own phone. 12 seconds a question.\nRight: +10 points. Fastest right answer: +5 more. Josh can open his third eye once.',
     playMs: () => 12000,
-    setup(st, rng) {
-      st.rounds = 3;
-      const qs = rng.shuffle(TRIVIA).slice(0, 3).map((t) => {
+    setup(st, rng, P) {
+      // the picker chose a theme and a length (P.opts); questions don't repeat in a night
+      const opts = P.opts || {};
+      const count = [10, 15, 20, 30].includes(opts.count) ? opts.count : 10;
+      const used = new Set(P.used || []);
+      let pool = questionPool(opts.theme || 'mixed');
+      let fresh = pool.filter((t) => !used.has(t.id));
+      if (fresh.length < count) fresh = pool; // ran out: allow repeats rather than stop
+      st.data.theme = themeName(opts.theme || 'mixed');
+      const picked = rng.shuffle(fresh).slice(0, count);
+      (P.used || []).push(...picked.map((t) => t.id));
+      st.rounds = picked.length;
+      const qs = picked.map((t) => {
         const opts = rng.shuffle(t.a.slice(0, 4));
         const correct = opts.indexOf(t.a[0]);
         const wrong = opts.map((_, k) => k).filter((k) => k !== correct);
-        return { q: t.q, opts, correct, eye: rng.shuffle(wrong).slice(0, 2) };
+        return { q: t.q, opts, correct, eye: rng.shuffle(wrong).slice(0, 2), theme: t.theme };
       });
       st._h.correct = qs.map((q) => q.correct);
-      st.data.qs = qs.map(({ q, opts, eye }) => ({ q, opts, eye })); // the answers stay on the host
+      st.data.qs = qs.map(({ q, opts, eye, theme }) => ({ q, opts, eye, theme })); // the answers stay on the host
       st.data.score = Object.fromEntries(st.seats.map((s) => [s, 0]));
       st.data.reveal = null;
     },
@@ -343,7 +353,7 @@ export const GAMES = {
       st.data.reveal = { round: st.round, correct: c, right, fastest: right[0] ?? null, picks: Object.fromEntries(st.seats.map((s) => [s, st.inputs[s]?.a ?? null])) };
       if (st.round + 1 < st.rounds) return 'next';
       st.results = st.seats.slice().sort((a, b) => st.data.score[b] - st.data.score[a])
-        .map((s) => ({ seat: s, gold: st.data.score[s], note: `${st.data.score[s]} pts` }));
+        .map((s) => ({ seat: s, gold: Math.ceil(st.data.score[s] / 3), note: `${st.data.score[s]} pts` }));
       return 'done';
     },
   },

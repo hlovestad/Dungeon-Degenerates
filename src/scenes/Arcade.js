@@ -17,6 +17,7 @@ import { sfx, toggleMute, isMuted, unlockAudio } from '../audio/sfx.js';
 import { playInterlude, speak } from '../ui/interlude.js';
 import { playChaos } from '../ui/chaos.js';
 import { openCardMenu } from '../ui/cardMenu.js';
+import { THEMES, COUNTS, questionPool } from '../data/trivia/index.js';
 
 export const ARCADE_PICKS = ['haakon', 'mike', 'josh', 'griffin'].map((race) => ({
   race, cls: { haakon: 'juggernaut', mike: 'goblin_king', josh: 'cosmic_oracle', griffin: 'hellbound_gambler' }[race],
@@ -31,6 +32,8 @@ export class ArcadeScene extends Phaser.Scene {
     this.role = !this.net ? 'local' : this.net.isHost ? 'host' : 'client';
     this.offs = [];
     this.over = false; // (Phaser reuses this object: reset per visit)
+    this.menu = null;
+    this.triviaWait = null;
     this.idle = 0;
     this.busy = false;
     this.events.once('shutdown', () => { this.offs.forEach((f) => f()); if (this.role === 'host') this.net.snapshot = null; });
@@ -40,7 +43,7 @@ export class ArcadeScene extends Phaser.Scene {
       this.applyHub(data.init.hub);
       items = data.init.items || [];
     } else {
-      if (data.fresh || !A.isArcade()) A.startArcade(data.picks || ARCADE_PICKS, { games: data.games || 8 });
+      if (data.fresh || !A.isArcade()) A.startArcade(data.picks || ARCADE_PICKS, { games: data.games || 8, only: data.only || null });
       // online: goblin guests who joined the room play the whole night too
       const guests = this.net ? GUESTS.map((_, k) => 4 + k).filter((g) => this.net.seats[g]) : [];
       guests.forEach((g) => ensureGuest(g, GUESTS[g - 4]));
@@ -111,6 +114,7 @@ export class ArcadeScene extends Phaser.Scene {
     n.snapshot = () => ({ scene: 'Arcade', init: { hub: this.hubState(), items: [] } });
     n.send({ t: 'go', scene: 'Arcade', init: { hub: this.hubState(), items } });
     this.offs.push(n.on('hubact', (m) => {
+      if (m.kind === 'trivia' && this.triviaWait && m.seat === run.arcade.picker) { this.triviaWait({ theme: m.theme, count: m.count }); return; }
       if (this.busy || m.seat !== run.arcade.picker) return;
       if (m.kind === 'spin') this.spin();
       else if (m.kind === 'pick') { const g = A.gameById(m.game); if (g) this.choose(g); }
@@ -127,6 +131,10 @@ export class ArcadeScene extends Phaser.Scene {
       else speak(this, m.who, m.line, this.iopts());
     }));
     this.offs.push(n.on('hubspin', (m) => this.showSpin(A.gameById(m.game), m.picked)));
+    this.offs.push(n.on('hubtrivia', () => {
+      if (run.arcade.picker === this.me) this.triviaMenu((o) => this.net.send({ t: 'hubact', seat: this.me, kind: 'trivia', ...o }));
+      else this.waitNote(`${run.party[run.arcade.picker].name.toUpperCase()} IS PICKING A TRIVIA THEME...`);
+    }));
     this.offs.push(n.on('lost', (e) => this.lost(e.reason)));
   }
 
@@ -178,7 +186,8 @@ export class ArcadeScene extends Phaser.Scene {
     const a = run.arcade;
     const n = Math.min(a.round + 1, a.total);
     const pot = a.pot ? `   POT ${a.pot}g` : '';
-    this.info.setText(a.round >= a.total ? 'THAT WAS THE LAST GAME' : `GAME ${n} OF ${a.total}   ${run.party[a.picker].name.toUpperCase()} PICKS${pot}`);
+    const what = a.only === 'trivia' ? 'TRIVIA ROUND' : 'GAME';
+    this.info.setText(a.round >= a.total ? 'THAT WAS THE LAST ONE' : `${what} ${n} OF ${a.total}   ${run.party[a.picker].name.toUpperCase()} PICKS${pot}`);
   }
 
   drawBar() {
@@ -188,7 +197,9 @@ export class ArcadeScene extends Phaser.Scene {
     const over = run.arcade.round >= run.arcade.total;
     if (over) return;
     const who = run.party[run.arcade.picker].name.toUpperCase();
-    if (this.myTurn()) {
+    if (this.myTurn() && run.arcade.only === 'trivia') {
+      B.add(button(this, 8, 302, 356, 52, 'PICK THE TRIVIA THEME', () => this.tapSpin(), { size: 12, fill: 0x2a3a6a, sub: 'and how many questions' }));
+    } else if (this.myTurn()) {
       B.add(button(this, 8, 302, 200, 52, 'SPIN', () => this.tapSpin(), { size: 14, fill: 0x6a2a3a, sub: this.net ? 'your pick: spin for it' : `${who} spins the wheel` }));
       B.add(button(this, 214, 302, 150, 52, 'PICK GAME', () => this.pickMenu(), { size: 10, fill: 0x2a3a6a, sub: this.net ? 'or choose one' : `${who} chooses` }));
     } else {
@@ -313,6 +324,7 @@ export class ArcadeScene extends Phaser.Scene {
   tapSpin() {
     if (this.busy) return;
     unlockAudio();
+    if (run.arcade.only === 'trivia' && this.role === 'host') { this.choose(A.gameById('trivia')); return; }
     if (this.role === 'client') { this.net.send({ t: 'hubact', seat: this.me, kind: 'spin' }); this.bar.setVisible(false); return; }
     this.spin();
   }
@@ -322,13 +334,71 @@ export class ArcadeScene extends Phaser.Scene {
     if (this.busy) return;
     const pick = A.spinGame();
     if (this.role === 'host') this.net.send({ t: 'hubspin', game: pick.id });
-    this.showSpin(pick, false).then(() => this.launch(pick));
+    this.showSpin(pick, false).then(() => this.prelaunch(pick));
   }
 
   choose(game) {
     if (this.busy) return;
     if (this.role === 'host') this.net.send({ t: 'hubspin', game: game.id, picked: true });
-    this.showSpin(game, true).then(() => this.launch(game));
+    this.showSpin(game, true).then(() => this.prelaunch(game));
+  }
+
+  // Trivia needs a theme + length first, chosen by whoever's picking.
+  prelaunch(game) {
+    if (game.id !== 'trivia' || !this.net) { this.launch(game); return; }
+    const picker = run.arcade.picker;
+    const go = (o) => { this.triviaWait = null; this.closeMenu(); this.launch(game, o); };
+    if (!this.isHuman(picker)) {
+      // a bot picks: usually everything, sometimes a theme
+      const themed = THEMES.filter((t) => t.qs && t.qs.length >= 10);
+      go({ theme: rng.chance(0.5) ? 'mixed' : rng.pick(themed).id, count: rng.pick([10, 10, 15]) });
+      return;
+    }
+    this.triviaWait = go;
+    this.net.send({ t: 'hubtrivia' });
+    if (picker === this.me) this.triviaMenu(go);
+    else this.waitNote(`${run.party[picker].name.toUpperCase()} IS PICKING A TRIVIA THEME...`);
+    // nobody answers in 30s: everything, 10 questions
+    this.time.delayedCall(30000, () => { if (this.triviaWait === go) go({ theme: 'mixed', count: 10 }); });
+  }
+
+  waitNote(str) {
+    this.closeMenu();
+    const L = (this.menu = this.add.container(0, 0).setDepth(900));
+    L.add(panel(this, 120, 140, 400, 60, { border: C.gold }));
+    L.add(text(this, 320, 170, str, { size: 8, ox: 0.5, oy: 0.5, color: T.cream, wrap: 380, align: 'center' }));
+  }
+
+  closeMenu() { this.menu?.destroy(); this.menu = null; }
+
+  triviaMenu(cb) {
+    this.closeMenu();
+    this.setBusy(true);
+    const L = (this.menu = this.add.container(0, 0).setDepth(900));
+    let theme = this.lastTheme || 'mixed', count = this.lastCount || 10;
+    const draw = () => {
+      L.removeAll(true);
+      L.add(dimmer(this, 0.75, 0));
+      L.add(panel(this, 8, 8, 624, 344));
+      L.add(text(this, 320, 20, 'SKULL TRIVIA: PICK A THEME', { size: 12, ox: 0.5, color: T.gold }));
+      THEMES.forEach((t, i) => {
+        const col = i % 5, row = Math.floor(i / 5);
+        const n = t.qs ? t.qs.length : questionPool('mixed').length;
+        L.add(button(this, 18 + col * 122, 40 + row * 54, 116, 48, t.name, () => { theme = t.id; sfx('select'); draw(); }, {
+          size: 8, sub: `${n} questions`, fill: theme === t.id ? 0x5a3f7a : C.panelHi,
+        }));
+      });
+      L.add(text(this, 18, 270, 'QUESTIONS:', { size: 8, oy: 0.5, color: T.cream }));
+      COUNTS.forEach((c, k) => {
+        L.add(button(this, 110 + k * 66, 252, 60, 36, String(c), () => { count = c; sfx('select'); draw(); }, { size: 10, fill: count === c ? 0x2a5a3a : C.panelHi }));
+      });
+      L.add(button(this, 400, 300, 220, 44, 'START TRIVIA', () => {
+        this.lastTheme = theme; this.lastCount = count;
+        this.closeMenu();
+        cb({ theme, count });
+      }, { size: 10, fill: 0x2a5a3a }));
+    };
+    draw();
   }
 
   showSpin(pick, picked) {
@@ -381,13 +451,13 @@ export class ArcadeScene extends Phaser.Scene {
     L.add(button(this, 250, 286, 140, 40, 'BACK', () => { L.destroy(); this.setBusy(false); }, { size: 10 }));
   }
 
-  launch(game) {
+  launch(game, opts) {
     A.beginGame(game);
     sfx('select');
     if (this.role === 'host') {
       // everyone's phone follows the host into the game
       if (game.id === 'stack') this.scene.start('Stack', { net: this.net, arcade: true, returnTo: 'Arcade' });
-      else this.scene.start('PartyGame', { net: this.net, game: game.id, seats: this.seats });
+      else this.scene.start('PartyGame', { net: this.net, game: game.id, seats: this.seats, opts });
       return;
     }
     if (this.role === 'client') return; // the host moves us

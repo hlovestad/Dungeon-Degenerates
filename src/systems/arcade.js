@@ -30,7 +30,7 @@ export const gameById = (id) => ARCADE_GAMES.find((g) => g.id === id);
 export const ARCADE_START_GOLD = 50;
 
 // Start a fresh arcade night. picks: [{ race, cls }]
-export function startArcade(picks, { games = 8, seed } = {}) {
+export function startArcade(picks, { games = 8, seed, only = null } = {}) {
   newRun(picks, seed);
   run.mode = 'arcade';
   run.party.forEach((h) => { h.gold = ARCADE_START_GOLD; });
@@ -44,6 +44,8 @@ export function startArcade(picks, { games = 8, seed } = {}) {
     lastGame: null,
     lastEvent: null,
     eventsSeen: {},
+    only, // 'trivia' = TRIVIA NIGHT: every game is trivia
+    usedQ: [], // trivia question ids already asked tonight
   };
   return run;
 }
@@ -54,6 +56,7 @@ export const hubScene = () => (isArcade() ? 'Arcade' : 'Map');
 
 // Spin for a game (never the same one twice in a row).
 export function spinGame() {
+  if (run.arcade.only) return gameById(run.arcade.only);
   const pool = ARCADE_GAMES.filter((g) => g.id !== run.arcade.lastGame);
   return rng.pick(pool);
 }

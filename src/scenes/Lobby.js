@@ -185,11 +185,11 @@ export class LobbyScene extends Phaser.Scene {
     B.add(button(this, 12, 304, 104, 48, 'LEAVE', () => { s.close(); this.menu(); }, { size: 10 }));
     if (s.isHost) {
       const ok = s.mySeat() >= 0;
-      const a = button(this, 312, 302, 162, 52, 'ARCADE NIGHT', () => this.start('arcade'), { size: 10, fill: 0x6a2a3a, sub: ok ? '8 games, all of them' : 'Pick your friend first' });
-      const b = button(this, 480, 302, 154, 52, 'STACK ATTACK', () => this.start('stack'), { size: 10, fill: 0x2a5a3a, sub: ok ? 'just cards' : 'Pick your friend first' });
-      a.setEnabled(ok);
-      b.setEnabled(ok);
-      B.add([a, b]);
+      const sub = (s) => (ok ? s : 'pick a friend first');
+      const a = button(this, 296, 302, 112, 52, 'ARCADE', () => this.start('arcade'), { size: 10, fill: 0x6a2a3a, sub: sub('8 games') });
+      const t = button(this, 412, 302, 112, 52, 'TRIVIA', () => this.start('trivia'), { size: 10, fill: 0x2a3a6a, sub: sub('trivia night') });
+      const b = button(this, 528, 302, 108, 52, 'CARDS', () => this.start('stack'), { size: 10, fill: 0x2a5a3a, sub: sub('stack attack') });
+      [a, t, b].forEach((x) => { x.setEnabled(ok); B.add(x); });
       B.add(text(this, 132, 332, 'Then pick a mode.', { size: 8, color: T.grey }));
     } else {
       B.add(text(this, 132, 332, s.mySeat() < 0 ? 'Pick your friend.' : 'Waiting for the host to start...', { size: 8, color: T.grey }));
@@ -200,6 +200,7 @@ export class LobbyScene extends Phaser.Scene {
     sfx('jackpot');
     run.stackMatch = null; // fresh scoreboard
     if (what === 'arcade') this.scene.start('Arcade', { net: session, fresh: true });
+    else if (what === 'trivia') this.scene.start('Arcade', { net: session, fresh: true, only: 'trivia', games: 6 });
     else this.scene.start('Stack', { net: session });
   }
 
