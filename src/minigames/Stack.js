@@ -13,21 +13,21 @@
 //            host your taps. It never applies rules itself.
 import { T, C } from '../config.js';
 import { text, panel, button, fadeTo, fadeIn, dimmer, bubble } from '../ui/ui.js';
-import { background, portraitActor, spawnDaniPortrait } from '../ui/stage.js';
+import { portraitActor } from '../ui/stage.js';
 import { run, rng, addGold } from '../systems/state.js';
 import { hubScene } from '../systems/arcade.js';
 import * as S from '../systems/stack.js';
 import { CARD_QUIPS } from '../data/quips.js';
 import { RACES } from '../data/races.js';
 import { sfx } from '../audio/sfx.js';
+import { enterTall } from '../ui/orientation.js';
 
 const ANTE = 10;
 const CARD_COL = { R: 0xd9473c, Y: 0xe8b830, G: 0x5aa83a, B: 0x3f7fd0 };
 const CARD_TXT = { R: '#d9473c', Y: '#e8b830', G: '#6abe30', B: '#5fa0f0' };
-const HAND_Y = 306; // centre of your cards
-const CW = 40, CH = 56; // your cards (big enough to tap)
-const PILE = { draw: { x: 262, y: 168 }, discard: { x: 334, y: 168 } };
-const SEAT_SPOTS = [{ x: 120, y: 100 }, { x: 320, y: 100 }, { x: 520, y: 100 }]; // opponents, bottom of frame
+// Played UPRIGHT: the canvas is TALL_W wide and as tall as the phone allows
+// (ui/orientation.js). Every position comes from layout(), so the table fits
+// any screen and re-lays itself out when the screen changes size.
 
 export class StackScene extends Phaser.Scene {
   constructor() { super('Stack'); }
@@ -47,13 +47,6 @@ export class StackScene extends Phaser.Scene {
     this.finished = false;
     this.offs = [];
     this.events.once('shutdown', () => { this.offs.forEach((f) => f()); if (this.net?.isHost) this.net.snapshot = null; });
-    background(this, 'bg_goblin_casino');
-    this.add.rectangle(320, 180, 640, 360, C.ink, 0.35).setDepth(-5);
-    // the table
-    const t = this.add.graphics().setDepth(0);
-    t.fillStyle(0x1f4a2a, 1).fillRoundedRect(150, 122, 340, 96, 14);
-    t.lineStyle(3, 0x5a3a22, 1).strokeRoundedRect(150, 122, 340, 96, 14);
-
     const seats = run.party.map((_, i) => i);
     if (this.role === 'client') {
       // the host already dealt: take its state
@@ -69,39 +62,84 @@ export class StackScene extends Phaser.Scene {
       seats.forEach((s) => { this.pot += -addGold(s, -ANTE); });
     }
 
-    // portraits: opponents in turn order after you, left to right
-    const order = [];
+    // opponents in turn order after you, left to right
+    this.order = [];
     let s = this.me;
-    for (let k = 1; k < seats.length; k++) { s = S.nextSeat({ ...this.st, dir: 1 }, s); order.push(s); }
+    for (let k = 1; k < seats.length; k++) { s = S.nextSeat({ ...this.st, dir: 1 }, s); this.order.push(s); }
+
+    enterTall(this, () => (this.animating ? (this.pendingBuild = true) : this.build()));
+    this.build();
+    this.netSetup();
+    this.time.delayedCall(500, () => (this.role === 'client' ? this.clientPrompt() : this.loop()));
+  }
+
+  // ------------------------------------------------------------------ layout
+  layout() {
+    const W = this.scale.width, H = this.scale.height;
+    const cw = H >= 580 ? 46 : 40; // your cards: big enough to tap, bigger on tall phones
+    const ch = Math.round(cw * 1.45);
+    const rows = 2; // hand rows we leave room for (more cards just squeeze tighter)
+    const top = 22; // info bar
+    const oppY = top + 78; // bottom of the opponents' frames
+    const countY = oppY + 24;
+    const handBottom = H - 8;
+    const handTop = handBottom - rows * ch - (rows - 1) * 6;
+    const ctrlY = handTop - 48; // top of the button row
+    const t0 = countY + 18, t1 = ctrlY - 8;
+    const cy = Math.round((t0 + t1) / 2);
+    return {
+      W, H, cw, ch, rows, top, oppY, countY, handBottom, handTop, ctrlY, t0, t1, cy,
+      opp: [W / 6, W / 2, (W * 5) / 6].map((x) => ({ x: Math.round(x), y: oppY })),
+      draw: { x: Math.round(W / 2 - 42), y: cy + 6 },
+      discard: { x: Math.round(W / 2 + 42), y: cy + 6 },
+      mid: { x: Math.round(W / 2), y: cy },
+    };
+  }
+
+  // Everything on screen that depends on its size. Called again on resize.
+  build() {
+    this.children.removeAll(true);
+    this.clockUI = null;
+    this.overlay = null;
+    const L = (this.L = this.layout());
+    // background, cropped to fill the tall screen
+    const bg = this.add.image(L.W / 2, L.H / 2, 'bg_goblin_casino').setDepth(-10);
+    bg.setScale(Math.max(L.W / bg.width, L.H / bg.height));
+    this.add.rectangle(L.W / 2, L.H / 2, L.W, L.H, C.ink, 0.45).setDepth(-5);
+    // the table
+    const t = this.add.graphics().setDepth(0);
+    t.fillStyle(0x1f4a2a, 1).fillRoundedRect(8, L.t0, L.W - 16, L.t1 - L.t0, 14);
+    t.lineStyle(3, 0x5a3a22, 1).strokeRoundedRect(8, L.t0, L.W - 16, L.t1 - L.t0, 14);
+
     this.faces = {};
-    order.forEach((seat, k) => {
-      const p = SEAT_SPOTS[k];
-      this.faces[seat] = portraitActor(this, run.party[seat].race, p.x, p.y, { depth: 20 });
-    });
-    this.faces[this.me] = portraitActor(this, run.party[this.me].race, 40, 352, { depth: 20, label: false });
-    const g = run.party.findIndex((h) => h.race === 'griffin');
-    if (g >= 0) this.dani = spawnDaniPortrait(this, this.faces[g]);
-
-    // card counts + mini card backs next to each opponent
     this.counts = {};
-    order.forEach((seat) => {
-      const f = this.faces[seat];
-      this.counts[seat] = this.add.container(f.x + 46, f.y - 34).setDepth(21);
+    this.order.forEach((seat, k) => {
+      const p = L.opp[k];
+      this.faces[seat] = portraitActor(this, this.race(seat), p.x, p.y, { depth: 20 });
+      this.counts[seat] = this.add.container(p.x - 14, L.countY).setDepth(21);
     });
+    // you: a small portrait at the left of the button row
+    this.faces[this.me] = portraitActor(this, this.race(this.me), 26, L.ctrlY + 42, { depth: 20, label: false });
+    this.faces[this.me].setScale(0.6);
+    this.faces[this.me].h *= 0.6;
+    // Dani: a little portrait on the bottom corner of Griffin's frame
+    const g = run.party.findIndex((h) => h.race === 'griffin');
+    if (g >= 0 && g !== this.me) {
+      const f = this.faces[g];
+      this.dani = portraitActor(this, 'dani', f.x + f.h / 2 - 8, f.y + 2, { scale: 0.5, depth: 22, label: false });
+    }
 
-    // top info line
-    panel(this, 150, 2, 340, 20, { alpha: 0.85 }).setDepth(30);
-    this.info = text(this, 320, 12, '', { size: 8, ox: 0.5, oy: 0.5, depth: 31 });
-    this.potText = text(this, 632, 8, '', { size: 8, ox: 1, color: T.gold, depth: 31 });
+    panel(this, 4, 2, L.W - 8, 20, { alpha: 0.85 }).setDepth(30);
+    this.info = text(this, 10, 12, this.infoStr || '', { size: 8, oy: 0.5, depth: 31, color: this.infoCol || T.cream });
+    this.potText = text(this, 18, L.t0 + 8, '', { size: 8, color: T.gold, depth: 31 });
 
     this.pileLayer = this.add.container(0, 0).setDepth(40);
     this.handLayer = this.add.container(0, 0).setDepth(60);
     this.btnLayer = this.add.container(0, 0).setDepth(70);
     this.ring = this.add.graphics().setDepth(19);
-
     this.render();
-    this.netSetup();
-    this.time.delayedCall(500, () => (this.role === 'client' ? this.clientPrompt() : this.loop()));
+    if (this.awaiting) this.showControls();
+    if (this.resultsReady) this.drawResults();
   }
 
   // ------------------------------------------------------------------ network
@@ -214,10 +252,11 @@ export class StackScene extends Phaser.Scene {
 
   lost(reason) {
     this.net?.close();
-    const L = this.add.container(0, 0).setDepth(990);
-    L.add(dimmer(this, 0.7, 0));
-    L.add(text(this, 320, 150, reason || 'Connection lost.', { size: 12, ox: 0.5, color: T.red }));
-    L.add(button(this, 245, 190, 150, 40, 'BACK', () => fadeTo(this, 'Lobby'), { size: 10 }));
+    const { W, H } = this.L;
+    const O = this.add.container(0, 0).setDepth(990);
+    O.add(dimmer(this, 0.7, 0));
+    O.add(text(this, W / 2, H / 2 - 30, reason || 'Connection lost.', { size: 10, ox: 0.5, color: T.red, wrap: W - 30, align: 'center' }));
+    O.add(button(this, W / 2 - 70, H / 2, 140, 40, 'BACK', () => fadeTo(this, 'Lobby'), { size: 10 }));
   }
 
   // ------------------------------------------------------------------ drawing
@@ -225,7 +264,7 @@ export class StackScene extends Phaser.Scene {
   race(seat) { return run.party[seat].race; }
 
   // One card as a container. faceUp=false draws the back.
-  card(card, x, y, w = CW, h = CH, faceUp = true) {
+  card(card, x, y, w = this.L.cw, h = this.L.ch, faceUp = true) {
     const c = this.add.container(x, y);
     const g = this.add.graphics();
     g.fillStyle(C.ink, 1).fillRoundedRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2, 5);
@@ -259,42 +298,43 @@ export class StackScene extends Phaser.Scene {
 
   render() {
     const st = this.st;
+    const L = this.L;
     // piles
     this.pileLayer.removeAll(true);
     const P = this.pileLayer;
-    const d = PILE.draw, dc = PILE.discard;
+    const d = L.draw, dc = L.discard;
     P.add(this.card(null, d.x + 2, d.y + 2, 44, 62, false));
     P.add(this.card(null, d.x, d.y, 44, 62, false));
-    P.add(text(this, d.x, d.y + 40, `${st.draw.length}`, { size: 8, ox: 0.5, color: T.grey }));
+    P.add(text(this, d.x, d.y + 40, `${st.draw.length} LEFT`, { size: 8, ox: 0.5, color: T.grey }));
     const topCard = S.top(st);
     const ring = this.add.graphics();
     ring.lineStyle(4, CARD_COL[st.color] || C.white, 1).strokeRoundedRect(dc.x - 26, dc.y - 35, 52, 70, 7);
     P.add(ring);
     P.add(this.card(topCard, dc.x, dc.y, 44, 62, true));
     P.add(text(this, dc.x, dc.y + 40, S.COLOR_NAMES[st.color] || '', { size: 8, ox: 0.5, color: CARD_TXT[st.color] || T.white }));
-    // direction arrows
-    P.add(text(this, 298, 132, st.dir === 1 ? '>>' : '<<', { size: 8, ox: 0.5, color: T.cream }));
+    // direction, between the piles
+    P.add(text(this, L.mid.x, d.y, st.dir === 1 ? '>>' : '<<', { size: 8, ox: 0.5, oy: 0.5, color: T.cream }));
     if (st.pending) {
-      const pt = text(this, 430, 168, `+${st.pending.amount}`, { size: 24, ox: 0.5, oy: 0.5, color: T.red, strokeThickness: 6 });
+      const pt = text(this, L.mid.x, Math.max(L.t0 + 16, d.y - 54), `+${st.pending.amount}`, { size: 20, ox: 0.5, oy: 0.5, color: T.red, strokeThickness: 6 });
       P.add(pt);
       this.tweens.add({ targets: pt, scale: 1.12, duration: 300, yoyo: true, repeat: -1 });
-      P.add(text(this, 430, 196, 'STACK OR TAKE', { size: 8, ox: 0.5, color: T.red }));
     }
 
     // opponents' card counts
     Object.entries(this.counts).forEach(([seat, cont]) => {
       cont.removeAll(true);
       const n = st.hands[seat].length;
-      cont.add(this.card(null, 3, 2, 24, 34, false));
-      cont.add(this.card(null, 0, 0, 24, 34, false));
-      cont.add(text(this, 18, 0, `x${n}`, { size: 10, oy: 0.5, color: n <= 2 ? T.red : T.white, strokeThickness: 4 }));
+      cont.add(this.card(null, 2, 1, 16, 22, false));
+      cont.add(this.card(null, 0, 0, 16, 22, false));
+      cont.add(text(this, 12, 0, `x${n}`, { size: 8, oy: 0.5, color: n <= 2 ? T.red : T.white, strokeThickness: 4 }));
     });
 
     // turn ring around whoever is up
     this.ring.clear();
     const f = this.faces[S.current(st)];
     if (f && st.winner === null) {
-      this.ring.lineStyle(3, C.gold, 1).strokeRect(f.x - f.h / 2 - 6, f.y - f.h - 6, f.h + 12, f.h + 12);
+      const sz = f.h * (f.scale || 1) + 10;
+      this.ring.lineStyle(3, C.gold, 1).strokeRect(f.x - sz / 2, f.y - f.h - 6, sz, f.h + 12);
     }
 
     this.potText.setText(`POT ${this.pot}g`);
@@ -305,32 +345,43 @@ export class StackScene extends Phaser.Scene {
     this.handLayer.removeAll(true);
     if (this.spectator) return;
     const st = this.st;
+    const L = this.L;
     const hand = this.sortHand(st.hands[this.me]);
     const n = hand.length;
-    const left = 84, right = 630;
-    const step = n > 1 ? Math.min(CW + 4, (right - left - CW) / (n - 1)) : 0;
-    const x0 = left + CW / 2 + Math.max(0, (right - left - CW - step * (n - 1)) / 2);
+    const span = L.W - 12 - L.cw;
+    const perRowMax = Math.floor(span / 26) + 1; // keep at least 26px of every card showing
+    const rows = Math.max(1, Math.min(L.rows, Math.ceil(n / perRowMax)));
+    const per = Math.ceil(n / rows);
     this.cardViews = [];
-    hand.forEach((cd, k) => {
-      const ok = interactive && S.canPlay(st, this.me, cd);
-      const v = this.card(cd, x0 + k * step, HAND_Y - (ok ? 8 : 0));
-      if (interactive && !ok) v.setAlpha(0.5);
-      if (ok) {
-        v.setSize(Math.max(step, 24), CH).setInteractive({ useHandCursor: true });
-        v.on('pointerup', () => this.tapCard(cd));
-      }
-      this.handLayer.add(v);
-      this.cardViews.push({ card: cd, v });
-    });
+    for (let r = 0; r < rows; r++) {
+      const row = hand.slice(r * per, (r + 1) * per);
+      const cnt = row.length;
+      const step = cnt > 1 ? Math.min(L.cw + 4, span / (cnt - 1)) : 0;
+      const x0 = L.W / 2 - (step * (cnt - 1)) / 2;
+      const y = L.handBottom - L.ch / 2 - (rows - 1 - r) * (L.ch + 6);
+      row.forEach((cd, k) => {
+        const ok = interactive && S.canPlay(st, this.me, cd);
+        const v = this.card(cd, x0 + k * step, y - (ok ? 6 : 0));
+        if (interactive && !ok) v.setAlpha(0.5);
+        if (ok) {
+          v.setSize(L.cw, L.ch).setInteractive({ useHandCursor: true });
+          v.on('pointerup', () => this.tapCard(cd));
+        }
+        this.handLayer.add(v);
+        this.cardViews.push({ card: cd, v });
+      });
+    }
   }
 
-  // your hand, grouped by colour then value, wilds at the end
   sortHand(hand) {
     const ord = { R: 0, Y: 1, G: 2, B: 3 };
     return hand.slice().sort((a, b) => (a.c === null) - (b.c === null) || (ord[a.c] ?? 9) - (ord[b.c] ?? 9) || String(a.v).localeCompare(String(b.v)));
   }
 
-  setInfo(str, color = T.cream) { this.info.setText(str).setColor(color); }
+  setInfo(str, color = T.cream) {
+    this.infoStr = str; this.infoCol = color;
+    this.info.setText(str).setColor(color);
+  }
 
   // ------------------------------------------------------------------ flow
   async loop() {
@@ -384,16 +435,16 @@ export class StackScene extends Phaser.Scene {
     const B = this.btnLayer;
     const can = S.playable(st, me);
     if (st.pending) {
-      this.setInfo(can.length ? `+${st.pending.amount} AT YOU! STACK, BOUNCE OR TAKE` : `+${st.pending.amount} AT YOU. NOTHING TO STACK.`, T.red);
-      B.add(button(this, 520, 214, 112, 46, `TAKE +${st.pending.amount}`, () => this.act({ type: 'take' }), { size: 10, fill: 0x6a2a3a }));
+      this.setInfo(can.length ? `+${st.pending.amount} AT YOU! STACK/BOUNCE/TAKE` : `+${st.pending.amount} AT YOU. NOTHING TO STACK.`, T.red);
+      B.add(button(this, this.L.W - 136, this.L.ctrlY, 128, 42, `TAKE +${st.pending.amount}`, () => this.act({ type: 'take' }), { size: 10, fill: 0x6a2a3a }));
     } else if (st.drew) {
-      this.setInfo(can.length ? 'PLAY THE CARD YOU DREW, OR PASS.' : 'NOTHING. PASS.', T.cream);
-      B.add(button(this, 520, 214, 112, 46, 'PASS', () => this.act({ type: 'pass' }), { size: 10 }));
+      this.setInfo(can.length ? 'PLAY IT OR PASS.' : 'NOTHING. PASS.', T.cream);
+      B.add(button(this, this.L.W - 136, this.L.ctrlY, 128, 42, 'PASS', () => this.act({ type: 'pass' }), { size: 10 }));
     } else {
-      this.setInfo(can.length ? 'YOUR TURN. TAP A RAISED CARD.' : 'NOTHING TO PLAY. DRAW.', T.gold);
-      B.add(button(this, 520, 214, 112, 46, 'DRAW', () => this.act({ type: 'draw' }), { size: 10, fill: can.length ? C.panelHi : 0x2a5a3a }));
+      this.setInfo(can.length ? 'YOUR TURN. TAP A CARD.' : 'NOTHING TO PLAY. DRAW.', T.gold);
+      B.add(button(this, this.L.W - 136, this.L.ctrlY, 128, 42, 'DRAW', () => this.act({ type: 'draw' }), { size: 10, fill: can.length ? C.panelHi : 0x2a5a3a }));
       // tap the draw pile too
-      const z = this.add.zone(PILE.draw.x, PILE.draw.y, 50, 70).setInteractive({ useHandCursor: true });
+      const z = this.add.zone(this.L.draw.x, this.L.draw.y, 50, 70).setInteractive({ useHandCursor: true });
       z.on('pointerup', () => this.act({ type: 'draw' }));
       B.add(z);
     }
@@ -419,32 +470,35 @@ export class StackScene extends Phaser.Scene {
 
   pickColor(cb) {
     this.overlay?.destroy();
-    const L = this.add.container(0, 0).setDepth(900);
-    this.overlay = L;
-    L.add(dimmer(this, 0.6, 0));
-    L.add(text(this, 320, 92, 'PICK A COLOUR', { size: 12, ox: 0.5, color: T.gold }));
+    const L = this.L;
+    const O = this.add.container(0, 0).setDepth(900);
+    this.overlay = O;
+    O.add(dimmer(this, 0.6, 0));
+    O.add(text(this, L.W / 2, L.cy - 104, 'PICK A COLOUR', { size: 12, ox: 0.5, color: T.gold }));
     S.COLORS.forEach((c, k) => {
       const n = this.st.hands[this.me].filter((x) => x.c === c).length;
-      L.add(button(this, 92 + k * 118, 120, 104, 90, S.COLOR_NAMES[c], () => { L.destroy(); this.overlay = null; cb(c); }, { size: 10, fill: CARD_COL[c], sub: `you have ${n}` }));
+      const x = L.W / 2 - 128 + (k % 2) * 132, y = L.cy - 84 + Math.floor(k / 2) * 84;
+      O.add(button(this, x, y, 124, 76, S.COLOR_NAMES[c], () => { O.destroy(); this.overlay = null; cb(c); }, { size: 10, fill: CARD_COL[c], sub: `you have ${n}` }));
     });
-    L.add(button(this, 260, 230, 120, 36, 'BACK', () => { L.destroy(); this.overlay = null; }, { size: 8 }));
+    O.add(button(this, L.W / 2 - 60, L.cy + 92, 120, 36, 'BACK', () => { O.destroy(); this.overlay = null; }, { size: 8 }));
   }
 
   pickTarget(cb) {
-    const L = this.add.container(0, 0).setDepth(900);
-    this.overlay = L;
-    L.add(dimmer(this, 0.6, 0));
-    L.add(text(this, 320, 92, 'SWAP HANDS WITH WHO?', { size: 12, ox: 0.5, color: T.gold }));
+    const L = this.L;
+    const O = this.add.container(0, 0).setDepth(900);
+    this.overlay = O;
+    O.add(dimmer(this, 0.6, 0));
+    O.add(text(this, L.W / 2, L.cy - 110, 'SWAP HANDS WITH WHO?', { size: 10, ox: 0.5, color: T.gold }));
     const others = this.st.seats.filter((s) => s !== this.me);
     others.forEach((s, k) => {
-      L.add(button(this, 92 + k * 160, 120, 140, 90, this.name(s).toUpperCase(), () => { L.destroy(); this.overlay = null; cb(s); }, {
+      O.add(button(this, 20, L.cy - 92 + k * 58, L.W - 40, 52, this.name(s).toUpperCase(), () => { O.destroy(); this.overlay = null; cb(s); }, {
         size: 10, sub: `${this.st.hands[s].length} cards`, fill: C.panelHi,
       }));
     });
-    L.add(button(this, 260, 230, 120, 36, 'BACK', () => { L.destroy(); this.overlay = null; }, { size: 8 }));
+    O.add(button(this, L.W / 2 - 60, L.cy + 86, 120, 36, 'BACK', () => { O.destroy(); this.overlay = null; }, { size: 8 }));
   }
 
-  // Down to one card: 3 seconds to tap LAST CARD! or draw 2.
+    // Down to one card: 3 seconds to tap LAST CARD! or draw 2.
   // You get a big button. Bots tap at a random speed (and sometimes forget).
   async lastCardClock(seat) {
     const st = this.st;
@@ -455,14 +509,15 @@ export class StackScene extends Phaser.Scene {
     const mine = who === 'me';
     const MS = 3000;
     const col = RACES[this.race(seat)].color;
-    L.add(text(this, 320, 228, mine ? 'ONE CARD LEFT!' : `${this.name(seat).toUpperCase()} HAS ONE CARD...`, { size: 10, ox: 0.5, color: col, strokeThickness: 4 }));
+    L.add(this.add.rectangle(this.L.W / 2, this.L.cy, this.L.W - 24, 116, C.ink, 0.8));
+    L.add(text(this, this.L.W / 2, this.L.cy - 44, mine ? 'ONE CARD LEFT!' : `${this.name(seat).toUpperCase()} HAS ONE CARD...`, { size: 10, ox: 0.5, color: col, strokeThickness: 4 }));
     const bar = this.add.graphics();
     L.add(bar);
     let result = null;
     const done = new Promise((res) => {
       const finish = (r) => { if (result === null) { result = r; res(r); } };
       if (mine) {
-        const b = button(this, 236, 240, 168, 46, 'LAST CARD!', () => {
+        const b = button(this, this.L.W / 2 - 90, this.L.cy - 28, 180, 56, 'LAST CARD!', () => {
           if (this.role === 'client') { this.net.send({ t: 'last', seat: this.me }); b.setEnabled(false); } else finish('called');
         }, { size: 14, fill: 0x8a5a1a, border: C.gold });
         L.add(b);
@@ -483,8 +538,8 @@ export class StackScene extends Phaser.Scene {
       callback: () => {
         const left = Math.max(0, 1 - (this.time.now - t0) / MS);
         bar.clear();
-        bar.fillStyle(C.ink, 1).fillRect(234, 290, 172, 10);
-        bar.fillStyle(left > 0.34 ? C.gold : C.red, 1).fillRect(236, 292, 168 * left, 6);
+        bar.fillStyle(C.ink, 1).fillRect(this.L.W / 2 - 92, this.L.cy + 34, 184, 10);
+        bar.fillStyle(left > 0.34 ? C.gold : C.red, 1).fillRect(this.L.W / 2 - 90, this.L.cy + 36, 180 * left, 6);
       },
     });
     if (mine) sfx('select');
@@ -506,19 +561,20 @@ export class StackScene extends Phaser.Scene {
   // ------------------------------------------------------------------ events
   spot(seat) {
     const f = this.faces[seat];
-    return seat === this.me ? { x: 330, y: HAND_Y } : { x: f.x, y: f.y - f.h / 2 };
+    return seat === this.me ? { x: this.L.W / 2, y: this.L.handBottom - this.L.ch / 2 } : { x: f.x, y: f.y - f.h / 2 };
   }
 
   say(seat, kind) {
     const q = CARD_QUIPS[this.race(seat)];
     if (!q || !q[kind]) return;
     const f = this.faces[seat];
-    const y = seat === this.me ? f.y - f.h - 2 : f.y - f.h - 2;
-    bubble(this, seat === this.me ? 96 : f.x, seat === this.me ? 270 : y + f.h + 40, rng.pick(q[kind]), 2000).setDepth(850);
+    const x = seat === this.me ? 90 : f.x;
+    const y = seat === this.me ? this.L.ctrlY - 4 : this.L.countY + 56;
+    bubble(this, x, y, rng.pick(q[kind]), 2000).setDepth(850);
   }
 
-  banner(str, color = T.gold, ms = 900) {
-    const t = text(this, 320, 236, str, { size: 14, ox: 0.5, oy: 0.5, color, strokeThickness: 6, depth: 860, wrap: 600, align: 'center' });
+    banner(str, color = T.gold, ms = 900) {
+    const t = text(this, this.L.W / 2, this.L.cy + 60, str, { size: 10, ox: 0.5, oy: 0.5, color, strokeThickness: 6, depth: 860, wrap: this.L.W - 20, align: 'center' });
     t.setScale(0.3);
     this.tweens.add({ targets: t, scale: 1, duration: 220, ease: 'Back.Out' });
     this.time.delayedCall(ms, () => this.tweens.add({ targets: t, alpha: 0, duration: 200, onComplete: () => t.destroy() }));
@@ -534,7 +590,7 @@ export class StackScene extends Phaser.Scene {
   async drawFly(seat, n) {
     const to = this.spot(seat);
     for (let k = 0; k < Math.min(n, 8); k++) {
-      this.flyCard(null, PILE.draw, to, false, 220);
+      this.flyCard(null, this.L.draw, to, false, 220);
       sfx('step');
       await this.wait(70);
     }
@@ -542,11 +598,21 @@ export class StackScene extends Phaser.Scene {
   }
 
   async animate(events) {
+    this.animating = true;
+    try {
+      await this.animateAll(events);
+    } finally {
+      this.animating = false;
+      if (this.pendingBuild) { this.pendingBuild = false; this.build(); }
+    }
+  }
+
+  async animateAll(events) {
     for (const e of events) {
       switch (e.t) {
         case 'play': {
           sfx(S.isPlus(e.card) || e.card.v === 'rbay' ? 'whip' : 'select');
-          await this.flyCard(e.card, this.spot(e.seat), PILE.discard);
+          await this.flyCard(e.card, this.spot(e.seat), this.L.discard);
           this.render();
           if (e.card.v === 'rbay') { /* bounce event handles it */ }
           break;
@@ -654,27 +720,39 @@ export class StackScene extends Phaser.Scene {
     sfx('jackpot');
     this.say(w, 'win');
     await this.wait(1400);
-    const L = this.add.container(0, 0).setDepth(900);
-    L.add(dimmer(this, 0.55, 0));
-    L.add(panel(this, 150, 60, 340, 220, { border: C.gold }));
-    L.add(text(this, 320, 74, 'STACK ATTACK: RESULTS', { size: 10, ox: 0.5, color: T.gold }));
+    this.resultsReady = true;
+    this.drawResults();
+  }
+
+  drawResults() {
+    if (!this.resultsReady) return;
+    const st = this.st;
+    const w = st.winner;
+    const { W, H } = this.L;
+    this.results?.destroy();
+    const R = (this.results = this.add.container(0, 0).setDepth(900));
+    const top = Math.max(30, Math.round(H / 2 - 150));
+    R.add(dimmer(this, 0.55, 0));
+    R.add(panel(this, 10, top, W - 20, 270, { border: C.gold }));
+    R.add(text(this, W / 2, top + 14, 'STACK ATTACK: RESULTS', { size: 8, ox: 0.5, color: T.gold }));
     const rank = st.seats.slice().sort((a, b) => st.hands[a].length - st.hands[b].length);
     rank.forEach((s, k) => {
-      const y = 100 + k * 34;
-      const f = portraitActor(this, this.race(s), 190, y + 30, { label: false, depth: 905 });
-      f.setScale(0.45);
-      L.add(f);
-      L.add(text(this, 216, y + 10, `${k + 1}. ${this.name(s)}`, { size: 10, color: RACES[this.race(s)].color }));
-      L.add(text(this, 470, y + 10, s === w ? `+${this.pot - ANTE}g` : `${st.hands[s].length} left  -${ANTE}g`, { size: 8, ox: 1, color: s === w ? T.gold : T.red }));
+      const y = top + 36 + k * 40;
+      const f = portraitActor(this, this.race(s), 38, y + 34, { label: false, depth: 905 });
+      f.setScale(0.5);
+      R.add(f);
+      R.add(text(this, 62, y + 10, `${k + 1}. ${this.name(s)}`, { size: 10, color: RACES[this.race(s)].color }));
+      R.add(text(this, 62, y + 24, s === w ? `wins the pot: +${this.pot - ANTE}g` : `${st.hands[s].length} cards left: -${ANTE}g`, { size: 8, color: s === w ? T.gold : T.red }));
     });
+    const by = top + 208;
     if (this.role === 'host') {
-      L.add(button(this, 160, 238, 150, 34, 'PLAY AGAIN', () => this.scene.restart({ net: this.net, returnTo: this.returnTo }), { size: 10, fill: 0x2a5a3a }));
-      L.add(button(this, 330, 238, 150, 34, 'LOBBY', () => { this.net.send({ t: 'tolobby' }); this.scene.start('Lobby'); }, { size: 10 }));
+      R.add(button(this, 20, by, (W - 50) / 2, 44, 'PLAY AGAIN', () => this.scene.restart({ net: this.net, returnTo: this.returnTo }), { size: 8, fill: 0x2a5a3a }));
+      R.add(button(this, 30 + (W - 50) / 2, by, (W - 50) / 2, 44, 'LOBBY', () => { this.net.send({ t: 'tolobby' }); this.scene.start('Lobby'); }, { size: 8 }));
     } else if (this.role === 'client') {
-      L.add(text(this, 320, 246, 'Waiting for the host...', { size: 8, ox: 0.5, color: T.grey }));
-      L.add(button(this, 245, 262, 150, 30, 'LEAVE', () => { this.net.close(); fadeTo(this, 'Lobby'); }, { size: 8 }));
+      R.add(text(this, W / 2, by + 4, 'Waiting for the host...', { size: 8, ox: 0.5, color: T.grey }));
+      R.add(button(this, W / 2 - 70, by + 18, 140, 34, 'LEAVE', () => { this.net.close(); fadeTo(this, 'Lobby'); }, { size: 8 }));
     } else {
-      L.add(button(this, 245, 238, 150, 34, 'CONTINUE', () => fadeTo(this, this.returnTo), { size: 10, fill: 0x2a5a3a }));
+      R.add(button(this, W / 2 - 80, by, 160, 44, 'CONTINUE', () => fadeTo(this, this.returnTo), { size: 10, fill: 0x2a5a3a }));
     }
   }
 

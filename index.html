@@ -36,11 +36,20 @@
     @keyframes tilt { 0%,30% { transform: rotate(0deg);} 60%,100% { transform: rotate(-90deg);} }
     @media (orientation: portrait) and (max-width: 900px) {
       #rotate { display: flex; }
+      body.tall #rotate { display: none; }
+    }
+    /* tall scenes (the card table) want the phone upright */
+    #upright { display: none; position: fixed; inset: 0; z-index: 10; background: #140c1c; color: #f4e3b5;
+      font-family: "PressStart", monospace; font-size: 12px; line-height: 2; text-align: center;
+      align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+    @media (orientation: landscape) and (max-height: 500px) {
+      body.tall #upright { display: flex; }
     }
   </style>
 </head>
 <body>
   <div id="game"></div>
+  <div id="upright"><div><span style="font-size:40px;display:block;margin-bottom:16px">📱</span>Cards are played upright.<br>Turn your phone back.</div></div>
   <div id="rotate"><div><span class="phone">📱</span>Turn your phone sideways,<br>degenerate.</div></div>
   <script src="lib/phaser.min.js"></script>
   <script type="module" src="src/main.js"></script>

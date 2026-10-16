@@ -112,7 +112,7 @@ export function bubble(scene, x, y, str, ms = 1300, color = T.ink) {
   g.fillRect(-w / 2, -h - 6, w, h);
   g.fillTriangle(-4, -7, 4, -7, 0, -1);
   t.setPosition(0, -11);
-  const cx = Math.max(w / 2 + 4, Math.min(640 - w / 2 - 4, x));
+  const cx = Math.max(w / 2 + 4, Math.min(scene.scale.width - w / 2 - 4, x));
   const cont = scene.add.container(cx, Math.max(h + 10, y), [g, t]).setDepth(70);
   cont.setScale(0.6);
   scene.tweens.add({ targets: cont, scale: 1, duration: 140, ease: 'Back.Out' });
@@ -140,7 +140,8 @@ export function hpBar(scene, w = 34) {
 
 // Full-screen dim layer that blocks input below it.
 export function dimmer(scene, alpha = 0.6, depth = 80) {
-  const r = scene.add.rectangle(320, 180, 640, 360, C.ink, alpha).setDepth(depth).setInteractive();
+  const sw = scene.scale.width, sh = scene.scale.height;
+  const r = scene.add.rectangle(sw / 2, sh / 2, sw, sh, C.ink, alpha).setDepth(depth).setInteractive();
   return r;
 }
 
