@@ -10,7 +10,7 @@ import { background, portraitActor } from '../ui/stage.js';
 import { run } from '../systems/state.js';
 import { startArcade } from '../systems/arcade.js';
 import { ARCADE_PICKS } from './Arcade.js';
-import { RACES } from '../data/races.js';
+import { RACES, GUESTS } from '../data/races.js';
 import { session, hostRoom, joinRoom } from '../net/session.js';
 import { sfx, unlockAudio } from '../audio/sfx.js';
 
@@ -134,9 +134,14 @@ export class LobbyScene extends Phaser.Scene {
     this.seatLayer.removeAll(true);
     const L = this.seatLayer;
     const mine = s.mySeat();
-    const full = mine < 0 && s.seats.every(Boolean);
-    L.add(text(this, 320, 60, full ? 'ALL FOUR SEATS ARE TAKEN. YOU CAN WATCH.' : mine < 0 ? 'TAP THE FRIEND YOU ARE PLAYING AS' : 'TAP ANOTHER FRIEND TO SWITCH', { size: 8, ox: 0.5, color: full ? T.gold : T.cream }));
-    run.party.forEach((h, i) => {
+    const friendsFull = s.seats.slice(0, 4).every(Boolean);
+    const allFull = s.seats.every(Boolean);
+    const msg = mine >= 0 ? 'TAP ANOTHER SEAT TO SWITCH'
+      : allFull ? 'EVERY SEAT IS TAKEN. YOU CAN WATCH.'
+      : friendsFull ? 'FRIENDS ARE TAKEN. GRAB A GOBLIN SEAT BELOW.'
+      : 'TAP THE FRIEND YOU ARE PLAYING AS';
+    L.add(text(this, 320, 60, msg, { size: 8, ox: 0.5, color: mine < 0 && friendsFull ? T.gold : T.cream }));
+    run.party.slice(0, 4).forEach((h, i) => {
       const p = portraitActor(this, h.race, SPOTS[i], 214, { scale: 2, depth: 21 });
       L.add(p);
       const owner = s.seats[i];
@@ -151,6 +156,24 @@ export class LobbyScene extends Phaser.Scene {
         L.add(z);
       }
     });
+    // goblin guest seats: extra players (5th, 6th). Only in the game if taken.
+    L.add(text(this, 150, 268, 'EXTRA\nPLAYERS:', { size: 8, ox: 1, oy: 0.5, color: T.grey, align: 'right', lineSpacing: 4 }));
+    GUESTS.forEach((race, k) => {
+      const seat = 4 + k;
+      const x = 186 + k * 170;
+      const p = portraitActor(this, race, x, 286, { scale: 0.5, depth: 21, label: false });
+      L.add(p);
+      const owner = s.seats[seat];
+      const status = owner === s.id ? 'YOU' : owner ? 'PLAYER' : 'OPEN';
+      L.add(text(this, x + 24, 262, RACES[race].name.toUpperCase(), { size: 8, color: RACES[race].color }));
+      L.add(text(this, x + 24, 276, status, { size: 8, color: owner === s.id ? T.gold : owner ? T.green : T.grey }));
+      if (owner === s.id) p.setPose('victory');
+      if (!owner || owner === s.id) {
+        const z = this.add.zone(x + 50, 268, 130, 40).setInteractive({ useHandCursor: true });
+        z.on('pointerup', () => { sfx('select'); s.claim(seat); });
+        L.add(z);
+      }
+    });
     this.drawBottom();
   }
 
@@ -160,7 +183,8 @@ export class LobbyScene extends Phaser.Scene {
     B.removeAll(true);
     B.add(panel(this, 0, 296, 640, 64, { alpha: 0.9 }));
     const humans = s.humans();
-    B.add(text(this, 132, 312, `${humans} PLAYER${humans === 1 ? '' : 'S'} + ${4 - humans} BOT${4 - humans === 1 ? '' : 'S'}`, { size: 8, color: T.cream }));
+    const bots = s.seats.slice(0, 4).filter((x) => !x).length; // empty friends become bots; empty goblin seats just sit out
+    B.add(text(this, 132, 312, `${humans} PLAYER${humans === 1 ? '' : 'S'} + ${bots} BOT${bots === 1 ? '' : 'S'}`, { size: 8, color: T.cream }));
     B.add(button(this, 12, 304, 104, 48, 'LEAVE', () => { s.close(); this.menu(); }, { size: 10 }));
     if (s.isHost) {
       const ok = s.mySeat() >= 0;

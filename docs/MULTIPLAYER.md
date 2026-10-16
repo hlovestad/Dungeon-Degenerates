@@ -31,3 +31,4 @@ Host in one tab, then open the share link (it keeps `&net=local`) in other tabs.
 
 - STACK ATTACK: yes.
 - Arcade hub and the other minigames: not yet (they still run on one phone with bots).
+- Up to 6 players: the four friends (bots if empty) + two goblin guest seats (Grub, Snot) for extra people.

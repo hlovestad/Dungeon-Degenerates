@@ -66,6 +66,8 @@ export function portraitActor(scene, race, x, y, { scale = 1, depth, label = tru
   drawFrame(col);
   img.setY(0);
   cont.add([frame, img]);
+  const tint = RACES[race]?.tint;
+  if (tint) img.setTint(tint);
   if (label && RACES[race]) {
     cont.add(text(scene, 0, pad + 2, RACES[race].name.toUpperCase(), { size: 8, ox: 0.5, color: RACES[race].color }));
   }
@@ -81,7 +83,7 @@ export function portraitActor(scene, race, x, y, { scale = 1, depth, label = tru
     if (pose === 'hurt') { drawFrame(C.red); img.setTint(0xff9a8a); }
     else if (pose === 'victory') { drawFrame(C.gold); img.clearTint(); }
     else if (pose === 'downed') { drawFrame(C.grey); img.setTint(0x6a6070); }
-    else { drawFrame(col); img.clearTint(); }
+    else { drawFrame(col); if (tint) img.setTint(tint); else img.clearTint(); }
   };
   return cont;
 }

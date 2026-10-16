@@ -14,11 +14,11 @@
 import { T, C } from '../config.js';
 import { text, panel, button, fadeTo, fadeIn, dimmer, bubble } from '../ui/ui.js';
 import { portraitActor } from '../ui/stage.js';
-import { run, rng, addGold } from '../systems/state.js';
+import { run, rng, addGold, ensureGuest } from '../systems/state.js';
 import { hubScene } from '../systems/arcade.js';
 import * as S from '../systems/stack.js';
 import { CARD_QUIPS } from '../data/quips.js';
-import { RACES } from '../data/races.js';
+import { RACES, GUESTS } from '../data/races.js';
 import { sfx } from '../audio/sfx.js';
 import { enterTall } from '../ui/orientation.js';
 
@@ -60,7 +60,11 @@ export class StackScene extends Phaser.Scene {
     this.infoStr = '';
     this.offs = [];
     this.events.once('shutdown', () => { this.offs.forEach((f) => f()); if (this.net?.isHost) this.net.snapshot = null; });
-    const seats = run.party.map((_, i) => i);
+    // the four friends (bots if nobody claimed them) + any goblin guests who joined
+    const guests = this.net ? GUESTS.map((_, k) => 4 + k).filter((g) => this.net.seats[g]) : [];
+    const seats = [0, 1, 2, 3, ...guests];
+    if (this.role === 'client') (data.init.st.seats || []).forEach((g) => { if (g >= 4) ensureGuest(g, GUESTS[g - 4]); });
+    else guests.forEach((g) => ensureGuest(g, GUESTS[g - 4]));
     this.post = null; // between rounds: { ready: {seat: bool}, vote: {seat: bool} }
     if (this.role === 'client') {
       // the host already dealt: take its state
@@ -74,7 +78,8 @@ export class StackScene extends Phaser.Scene {
       this.setGold(m.gold);
     } else {
       // the match (scoreboard + seating order) carries over between rounds
-      if (!run.stackMatch || run.stackMatch.order.length !== seats.length) run.stackMatch = S.newMatch(seats);
+      const same = run.stackMatch && run.stackMatch.order.slice().sort().join() === seats.slice().sort().join();
+      if (!same) run.stackMatch = S.newMatch(seats); // somebody joined or left: new scoreboard
       this.match = run.stackMatch;
       this.shuffled = !!data.shuffled;
       this.st = S.newGame(this.match.order, rng);
@@ -101,19 +106,27 @@ export class StackScene extends Phaser.Scene {
     const cw = H >= 580 ? 46 : 40; // your cards: big enough to tap, bigger on tall phones
     const ch = Math.round(cw * 1.45);
     const rows = 2; // hand rows we leave room for (more cards just squeeze tighter)
+    const nOpp = (this.order || []).length || 3;
+    const os = nOpp > 3 ? 0.75 : 1; // opponents' portrait scale (smaller when it's crowded)
     const top = 22; // info bar
-    const oppY = top + 76; // bottom of the across-the-table opponent's frame
-    const countY = oppY + 22;
+    const oppY = top + Math.round(76 * os); // bottom of the across-the-table opponents' frames
+    const countY = oppY + Math.round(22 * os);
     const handBottom = H - 8;
     const handTop = handBottom - rows * ch - (rows - 1) * 6;
     const ctrlY = handTop - 48; // top of the button row
     const t0 = countY + 14, t1 = ctrlY - 8;
     const cy = Math.round((t0 + t1) / 2);
     const sideY = Math.min(t0 + 88, cy + 24); // bottom of the side opponents' frames
+    const sideHi = t0 + Math.round(62), sideLo = Math.min(t0 + 144, t1 - 22); // two per side
+    // clockwise from you: up your left side, across the top, down the right side
+    const opp = {
+      3: [{ x: 42, y: sideY }, { x: Math.round(W / 2), y: oppY }, { x: W - 42, y: sideY }],
+      4: [{ x: 34, y: sideY }, { x: Math.round(W / 2 - 56), y: oppY }, { x: Math.round(W / 2 + 56), y: oppY }, { x: W - 34, y: sideY }],
+      5: [{ x: 34, y: sideLo }, { x: 34, y: sideHi }, { x: Math.round(W / 2), y: oppY }, { x: W - 34, y: sideHi }, { x: W - 34, y: sideLo }],
+    }[nOpp] || [];
     return {
       W, H, cw, ch, rows, top, oppY, countY, handBottom, handTop, ctrlY, t0, t1, cy,
-      // left, across, right (you're at the bottom)
-      opp: [{ x: 42, y: sideY }, { x: Math.round(W / 2), y: oppY }, { x: W - 42, y: sideY }],
+      opp, os,
       draw: { x: Math.round(W / 2 - 30), y: cy + 6 },
       discard: { x: Math.round(W / 2 + 30), y: cy + 6 },
       mid: { x: Math.round(W / 2), y: cy },
@@ -139,8 +152,10 @@ export class StackScene extends Phaser.Scene {
     this.counts = {};
     this.order.forEach((seat, k) => {
       const p = L.opp[k];
-      this.faces[seat] = portraitActor(this, this.race(seat), p.x, p.y, { depth: 20 });
-      this.counts[seat] = this.add.container(p.x - 22, p.y + 22).setDepth(21);
+      const f = portraitActor(this, this.race(seat), p.x, p.y, { depth: 20 });
+      if (L.os !== 1) { f.setScale(L.os); f.h *= L.os; }
+      this.faces[seat] = f;
+      this.counts[seat] = this.add.container(p.x - 22, p.y + Math.round(22 * L.os)).setDepth(21);
     });
     // you: a small portrait at the left of the button row
     this.faces[this.me] = portraitActor(this, this.race(this.me), 26, L.ctrlY + 42, { depth: 20, label: false });
@@ -152,6 +167,7 @@ export class StackScene extends Phaser.Scene {
     if (g >= 0 && g !== this.me) {
       const f = this.faces[g];
       this.dani = portraitActor(this, 'dani', f.x + f.h / 2 - 8, f.y + 2, { scale: 0.5, depth: 22, label: false });
+      if (L.os !== 1) this.dani.setScale(L.os);
     }
 
     panel(this, 4, 2, L.W - 8, 20, { alpha: 0.85 }).setDepth(30);
@@ -376,7 +392,7 @@ export class StackScene extends Phaser.Scene {
     this.ring.clear();
     const f = this.faces[S.current(st)];
     if (f && st.winner === null) {
-      const sz = f.h * (f.scale || 1) + 10;
+      const sz = f.h + 10; // .h is already the on-screen size
       this.ring.lineStyle(3, C.gold, 1).strokeRect(f.x - sz / 2, f.y - f.h - 6, sz, f.h + 12);
     }
 

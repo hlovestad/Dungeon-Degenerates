@@ -44,6 +44,7 @@ ICON_KEYS.forEach((k) => { PLACEHOLDERS[k] = () => drawIcon(k); });
 BG_KEYS.forEach((k) => { PLACEHOLDERS[k] = () => drawBackground(k); });
 
 import { ART_SCALE } from '../config.js';
+import { RACES } from '../data/races.js';
 
 // Keys that came from real (preprocessed) art. Those are drawn at their native
 // size times ART_SCALE; placeholders are stretched to a target height instead.
@@ -73,8 +74,12 @@ export function poseKey(scene, base, pose = 'idle') {
 
 // The UI face for a character: the portrait if real art has one, else idle.
 export function faceKey(scene, race) {
-  const k = `${race}_portrait`;
-  return isReal(k) && scene.textures.exists(k) ? k : poseKey(scene, race, 'idle');
+  const base = RACES[race]?.art || race; // goblin guests borrow the goblin's art
+  for (const b of [race, base]) {
+    const k = `${b}_portrait`;
+    if (isReal(k) && scene.textures.exists(k)) return k;
+  }
+  return poseKey(scene, base, 'idle');
 }
 
 // Set a sprite's scale so its visible height matches `height` game pixels,

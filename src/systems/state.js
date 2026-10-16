@@ -64,6 +64,15 @@ export function newRun(picks, seed) {
   return run;
 }
 
+// Online card games can have goblin guests in seats 4+. Add them to the party
+// only when they're actually playing (the arcade hub stays at four friends).
+export function ensureGuest(seat, race) {
+  if (!run || run.party[seat]) return;
+  const h = createHero(race, RACES[race].signature, seat);
+  h.gold = 50;
+  run.party[seat] = h;
+}
+
 // ---------- Economy: personal purses ----------
 export const hero = (i) => run.party[i];
 export const leader = () => run.party[run.leader];

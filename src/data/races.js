@@ -49,4 +49,17 @@ export const RACES = {
   },
 };
 
+// GOBLIN GUESTS: extra seats for a 5th / 6th player in online card games.
+// Not pickable in the dungeon (they're not in RACE_ORDER). They use the
+// goblin grunt art until they get portraits of their own.
+export const GUESTS = ['grub', 'snot'];
+RACES.grub = {
+  id: 'grub', name: 'Grub', race: 'Goblin', guest: true, art: 'goblin_grunt', signature: 'goblin_king', color: '#8be04e',
+  base: { hp: 24, atk: 6, def: 2, spd: 6 }, perk: 'Just happy to be here.', flaw: 'Smells.', tagline: 'A goblin guest.',
+};
+RACES.snot = {
+  id: 'snot', name: 'Snot', race: 'Goblin', guest: true, art: 'goblin_grunt', tint: 0xb8f0ff, signature: 'goblin_king', color: '#7fe0f0',
+  base: { hp: 24, atk: 6, def: 2, spd: 6 }, perk: 'Just happy to be here.', flaw: 'Smells worse.', tagline: 'Another goblin guest.',
+};
+
 export const RACE_ORDER = ['haakon', 'mike', 'josh', 'griffin'];

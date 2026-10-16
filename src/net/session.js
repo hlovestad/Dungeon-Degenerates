@@ -10,7 +10,7 @@
 // The host also counts as a player and claims a seat like everyone else.
 import { makeTransport } from './transport.js';
 
-const SEATS = 4;
+const SEATS = 6; // the four friends + two goblin guests
 const HEARTBEAT = 2000;
 const TIMEOUT = 10000; // no word for this long = gone
 
