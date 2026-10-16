@@ -426,6 +426,33 @@ export class ArcadeScene extends Phaser.Scene {
     draw();
   }
 
+  showSpin(pick, picked) {
+    this.setBusy(true);
+    return new Promise((done) => {
+      this.spinBox?.destroy();
+      const L = (this.spinBox = this.add.container(0, 0).setDepth(850));
+      L.add(panel(this, 150, 110, 340, 80, { border: C.gold }));
+      L.add(text(this, 320, 122, `${run.party[run.arcade.picker].name.toUpperCase()} ${picked ? 'PICKS' : 'SPINS'}...`, { size: 8, ox: 0.5, color: T.grey }));
+      const name = text(this, 320, 154, '', { size: 14, ox: 0.5, oy: 0.5, color: T.gold });
+      L.add(name);
+      const names = A.ARCADE_GAMES.map((g) => g.name);
+      let k = Math.floor(Math.random() * names.length);
+      const steps = picked ? 1 : 18;
+      let n = 0;
+      const tick = () => {
+        n++;
+        name.setText(n >= steps ? pick.name : names[k++ % names.length]);
+        sfx(n >= steps ? 'jackpot' : 'step');
+        if (n < steps) this.time.delayedCall(50 + n * n * 1.1, tick);
+        else {
+          this.tweens.add({ targets: name, scale: 1.25, duration: 160, yoyo: true });
+          this.time.delayedCall(1100, done);
+        }
+      };
+      tick();
+    });
+  }
+
   pickMenu() {
     if (this.busy) return;
     this.setBusy(true);

@@ -4,23 +4,23 @@
 // Hero one-liners. Triggered by combat.js with a chance so they don't spam.
 export const HERO_QUIPS = {
   haakon: {
-    crit: ['Did everyone see that?', 'Light work.', 'I barely tried.', 'Somebody film that.'],
-    miss: ['That was a warning shot.', 'I let him live. On purpose.', 'The floor moved.'],
-    kill: ['Next.', 'Too easy.', 'Who else wants some?', 'That was my warmup set.'],
-    hurt: ["It's a flesh wound.", "I'm fine. FINE.", 'That tickled. Kind of.'],
+    crit: ['Open wide!', 'Say ahh!', 'Did everyone see that? Look at me.', 'Somebody film that. From my good side.'],
+    miss: ['That was a warning shot.', 'I let him live. Out of pity.', 'The floor moved. Sue the floor.'],
+    kill: ['Next victim, step up.', 'Open wide, who is next?', 'Who else wants some?', 'Lie down. Good.'],
+    hurt: ['RUDE.', "I'm fine. I'm gorgeous and I'm fine.", 'You will regret touching this face.'],
   },
   mike: {
-    crit: ['Goblin power!', 'The nose knows.', 'Big swing energy.'],
-    miss: ['My nose blocked my view.', 'Practice swing.', 'Whatever.'],
-    kill: ['Smell ya later.', 'Get sniffed.', 'Nothing personal.'],
-    killGoblin: ['Sorry, cousin.', "I'll tell your mom.", 'Family reunion cancelled.'],
-    hurt: ['My NOSE!', 'Not the face!', 'Ow ow ow.'],
+    crit: ['Goblin power! Oy, my wrist.', 'The nose knows.', 'Finally something goes right.'],
+    miss: ['Of course I missed. Of COURSE.', 'My nose blocked my view. As usual.', 'Oy veyyyyy.'],
+    kill: ['Smell ya later.', 'Get sniffed.', 'Good. Now I need to sit down.'],
+    killGoblin: ['Sorry, cousin.', "I'll tell your mom.", 'Family reunion cancelled. Oy.'],
+    hurt: ['My NOSE!', 'Oy! My back! My everything!', 'This is a disgrace. Ow.'],
   },
   josh: {
-    crit: ['I foresaw that.', 'The stars aligned.', 'Cosmic.'],
-    miss: ['Mercury is in retrograde.', 'The vibes were off.', 'My third eye blinked.'],
-    kill: ['Namaste, buddy.', 'Back to the void.', 'It was written.'],
-    hurt: ['My chakras!', 'Bad energy. Very bad energy.', 'I did NOT see that coming.'],
+    crit: ['Manifested!', 'The universe provides!', 'That was SO meant to be.'],
+    miss: ['Mercury is in retrograde.', "It's giving bad energy.", 'Not my fault, my moon is in Pisces.'],
+    kill: ['Love and light, buddy.', 'I released you back to the universe.', 'Namaste. Bye.'],
+    hurt: ['Ow! My chakras!', 'Rude. That was so Scorpio of you.', 'I am NOT in the space for that.'],
   },
   griffin: {
     crit: ['Let it ride!', 'House always loses!', 'Read em and weep.'],

@@ -18,6 +18,26 @@ import sports from './sports.js';
 import games from './games.js';
 import food from './food.js';
 import tech from './tech.js';
+import comics from './comics.js';
+import scifi from './scifi.js';
+import wizards from './wizards.js';
+import disney from './disney.js';
+import cartoons from './cartoons.js';
+import cars from './cars.js';
+import outdoors from './outdoors.js';
+import gym from './gym.js';
+import brands from './brands.js';
+import boardgames from './boardgames.js';
+import presidents from './presidents.js';
+import capitals from './capitals.js';
+import dinosaurs from './dinosaurs.js';
+import books from './books.js';
+import drinks from './drinks.js';
+import fighting from './fighting.js';
+import holidays from './holidays.js';
+import money from './money.js';
+import art from './art.js';
+import weird from './weird.js';
 
 export const THEMES = [
   { id: 'mixed', name: 'EVERYTHING' },
@@ -37,6 +57,26 @@ export const THEMES = [
   { id: 'myth', name: 'MYTH & FANTASY', qs: myth },
   { id: 'words', name: 'WORDS', qs: words },
   { id: 'tech', name: 'TECH', qs: tech },
+  { id: 'comics', name: 'SUPERHEROES', qs: comics },
+  { id: 'scifi', name: 'SCI-FI', qs: scifi },
+  { id: 'wizards', name: 'WIZARDS & HOBBITS', qs: wizards },
+  { id: 'disney', name: 'DISNEY & PIXAR', qs: disney },
+  { id: 'cartoons', name: 'ANIME & CARTOONS', qs: cartoons },
+  { id: 'cars', name: 'CARS & BIKES', qs: cars },
+  { id: 'outdoors', name: 'OUTDOORS', qs: outdoors },
+  { id: 'gym', name: 'FITNESS & GYM', qs: gym },
+  { id: 'brands', name: 'BRANDS & LOGOS', qs: brands },
+  { id: 'boardgames', name: 'BOARD & CARD GAMES', qs: boardgames },
+  { id: 'presidents', name: 'US HISTORY', qs: presidents },
+  { id: 'capitals', name: 'WORLD CAPITALS', qs: capitals },
+  { id: 'dinosaurs', name: 'DINOSAURS', qs: dinosaurs },
+  { id: 'books', name: 'BOOKS', qs: books },
+  { id: 'drinks', name: 'BEER & COCKTAILS', qs: drinks },
+  { id: 'fighting', name: 'WRESTLING & FIGHTING', qs: fighting },
+  { id: 'holidays', name: 'HOLIDAYS', qs: holidays },
+  { id: 'money', name: 'MONEY & BUSINESS', qs: money },
+  { id: 'art', name: 'ART & DESIGN', qs: art },
+  { id: 'weird', name: 'WEIRD BUT TRUE', qs: weird },
   { id: 'general', name: 'GRAB BAG', qs: general },
   { id: 'degenerates', name: 'THE DEGENERATES', qs: degenerates },
 ];

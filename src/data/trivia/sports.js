@@ -73,7 +73,7 @@ export default [
   { q: 'In golf, what is a score of one over par on a hole called?', a: ['Bogey', 'Birdie', 'Eagle', 'Par'] },
   { q: 'In which sport do people "hang ten"?', a: ['Surfing', 'Skateboarding', 'Skiing', 'Snowboarding'] },
   { q: 'How many players per team are on the ice in hockey, including the goalie?', a: ['6', '5', '7', '11'] },
-  { q: 'The martial art and Olympic sport of judo was created in which country?', a: ['Japan', 'China', 'Korea', 'Brazil'] },
+  { q: 'Which sport slides granite stones down ice toward a target called the house?', a: ['Curling', 'Bocce', 'Shuffleboard', 'Lawn bowling'] },
   { q: 'Lambeau Field is the home of which NFL team?', a: ['Green Bay Packers', 'Chicago Bears', 'Minnesota Vikings', 'Detroit Lions'] },
   { q: 'How many players per side are on the field in rugby union?', a: ['15', '13', '11', '12'] },
   { q: 'In cricket, how many balls are bowled in a standard over?', a: ['6', '8', '5', '4'] },

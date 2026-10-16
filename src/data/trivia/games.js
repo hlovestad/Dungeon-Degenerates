@@ -88,7 +88,7 @@ export default [
   { q: 'In which stealth series does the hero famously hide under a cardboard box?', a: ['Metal Gear', 'Splinter Cell', 'Hitman', 'Thief'] },
   { q: 'Which Street Fighter II character is a sumo wrestler?', a: ['E. Honda', 'Zangief', 'Dhalsim', 'Balrog'] },
   { q: 'In Mortal Kombat, which ninja yells "Get over here!"?', a: ['Scorpion', 'Sub-Zero', 'Reptile', 'Smoke'] },
-  { q: 'What was the last home video game console Sega ever made?', a: ['Dreamcast', 'Saturn', 'Genesis', 'Master System'] },
+  { q: 'In The Legend of Zelda, what is the currency Link collects?', a: ['Rupees', 'Gems', 'Coins', 'Crowns'] },
   { q: 'In Animal Crossing, which raccoon sells you your house and loans?', a: ['Tom Nook', 'Isabelle', 'K.K. Slider', 'Blathers'] },
   { q: 'In Portal, what is the name of the AI that runs the test chambers?', a: ['GLaDOS', 'SHODAN', 'HAL 9000', 'Cortana'] },
   { q: 'In what year did Minecraft reach its full 1.0 release?', a: ['2011', '2009', '2010', '2013'] },
