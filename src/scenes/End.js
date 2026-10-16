@@ -23,7 +23,7 @@ export class EndScene extends Phaser.Scene {
     fadeIn(this);
     this.won = won;
     background(this, won ? 'bg_treasure_vault' : 'bg_landlord_office');
-    this.add.rectangle(320, 180, 640, 360, C.ink, 0.35).setDepth(-5);
+    this.add.rectangle(320, 180, 2000, 360, C.ink, 0.35).setDepth(-5);
     text(this, 320, 12, won ? 'THE LANDLORD IS DEFEATED' : 'EVICTED. BUT SOMEBODY STILL WINS.', { size: 12, ox: 0.5, color: won ? T.gold : T.red, strokeThickness: 5 });
 
     // heroes standing in a row with their crown counts above them

@@ -12,7 +12,16 @@ import { T } from '../config.js';
 export function background(scene, key) {
   const img = scene.add.image(0, 0, key).setOrigin(0, 0).setDepth(-10);
   img.setDisplaySize(640, 360);
+  sideFill(scene, key, img.depth);
   return img;
+}
+
+// Wide phones see past the 640 stage: mirror the background into that space
+// so the floor lines up and there are no black bars.
+export function sideFill(scene, key, depth = -10) {
+  [-640, 640].forEach((x) => {
+    scene.add.image(x, 0, key).setOrigin(0, 0).setDisplaySize(640, 360).setFlipX(true).setDepth(depth - 0.5);
+  });
 }
 
 // A character standing in the world. Returns a container whose (x, y) is the

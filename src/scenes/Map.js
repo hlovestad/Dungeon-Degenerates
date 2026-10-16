@@ -6,6 +6,7 @@ import { FORMATIONS, FIGHT_BG } from '../data/enemies.js';
 import { RACES } from '../data/races.js';
 import { pickEvent } from './Event.js';
 import { openCardMenu } from '../ui/cardMenu.js';
+import { sideFill } from '../ui/stage.js';
 import { dungeonInterlude } from '../systems/arcade.js';
 import { playInterlude } from '../ui/interlude.js';
 import { fitHeight, poseKey, isReal } from '../art/assets.js';
@@ -28,6 +29,7 @@ export class MapScene extends Phaser.Scene {
     }
     fadeIn(this);
     this.add.image(0, 0, 'map_background').setOrigin(0).setDisplaySize(640, 360).setDepth(-10);
+    sideFill(this, 'map_background');
     this.moving = false;
     const here = nodeById(run.at);
     const josh = hasRace('josh') && run.party.find((h) => h.race === 'josh').hp > 0;

@@ -2,7 +2,7 @@
 // The rest of the game is 640x360 landscape. A tall scene switches the canvas
 // to TALL_W wide and exactly as tall as the screen's shape, so it fills any
 // phone with no black bars, and re-fits when the screen changes size.
-import { W, H } from '../config.js';
+import { landscapeSize } from '../config.js';
 
 export const TALL_W = 288; // narrow enough that text and cards stay big on a phone
 const MIN_H = 480, MAX_H = 760;
@@ -41,5 +41,6 @@ export function enterTall(scene, onResize) {
 
 export function leaveTall(scene) {
   document.body.classList.remove('tall');
-  if (scene.scale.width !== W || scene.scale.height !== H) scene.scale.setGameSize(W, H);
+  const s = landscapeSize();
+  if (scene.scale.width !== s.w || scene.scale.height !== s.h) scene.scale.setGameSize(s.w, s.h);
 }

@@ -41,8 +41,8 @@ export class TitleScene extends Phaser.Scene {
     }, { size: 12, fill: 0x2a5a3a, depth: 300 });
     this.tweens.add({ targets: [start, arcade, online], alpha: 0.8, duration: 500, yoyo: true, repeat: -1, ease: 'Stepped' });
 
-    const flash = button(this, 470, 340, 164, 18, `REDUCE FLASHING: ${reduceFlashing() ? 'ON' : 'OFF'}`, () => {
-      flash.setLabel(`REDUCE FLASHING: ${toggleReduceFlashing() ? 'ON' : 'OFF'}`);
+    const flash = button(this, 470, 334, 164, 22, `FLASHING: ${reduceFlashing() ? 'REDUCED' : 'NORMAL'}`, () => {
+      flash.setLabel(`FLASHING: ${toggleReduceFlashing() ? 'REDUCED' : 'NORMAL'}`);
     }, { size: 8, depth: 300 });
 
     const mute = iconButton(this, 602, 8, isMuted() ? 'x' : '♪', () => {

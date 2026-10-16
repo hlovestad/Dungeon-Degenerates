@@ -1,4 +1,4 @@
-import { W, H } from './config.js';
+import { W, H, landscapeSize } from './config.js';
 import { BootScene } from './scenes/Boot.js';
 import { TitleScene } from './scenes/Title.js';
 import { PartyScene } from './scenes/Party.js';
@@ -19,7 +19,7 @@ import { WheelScene } from './minigames/Wheel.js';
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
-  width: W,
+  width: landscapeSize().w,
   height: H,
   backgroundColor: '#0b0710',
   pixelArt: true,
@@ -31,6 +31,37 @@ const game = new Phaser.Game({
   input: { activePointers: 2 },
   scene: [BootScene, TitleScene, PartyScene, MapScene, BattleScene, ShopScene, CasinoScene, EventScene, EndScene, TriviaScene, WhackScene, ShowdownScene, WheelScene, ArcadeScene, StackScene, LobbyScene],
 });
+
+// Centre a landscape scene's camera on the 640-wide stage (tall scenes,
+// like the card table, size themselves and keep scroll at 0).
+function centre(scene) {
+  if (document.body.classList.contains('tall')) return;
+  const cam = scene.cameras?.main;
+  if (cam) cam.setScroll(-Math.round((scene.scale.width - W) / 2), 0);
+}
+game.events.once('ready', () => {
+  game.scene.scenes.forEach((sc) => sc.sys.events.on('create', () => centre(sc)));
+});
+let rt = null;
+const refit = () => {
+  if (document.body.classList.contains('tall')) return; // the tall scene handles itself
+  const s = landscapeSize();
+  if (s.w !== game.scale.width || s.h !== game.scale.height) game.scale.setGameSize(s.w, s.h);
+  game.scene.getScenes(true).forEach(centre);
+};
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(refit, 150); });
+window.__refit = refit;
+
+// Android: go properly full screen (and stay sideways) on the first tap.
+// iPhones don't allow this in Safari; there, Add to Home Screen does it.
+window.addEventListener('pointerdown', () => {
+  const el = document.documentElement;
+  if (!document.fullscreenElement && el.requestFullscreen && !window.matchMedia('(display-mode: fullscreen)').matches) {
+    el.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+      if (!document.body.classList.contains('tall')) screen.orientation?.lock?.('landscape').catch(() => {});
+    }).catch(() => {});
+  }
+}, { once: true });
 
 // Handy for debugging from the browser console.
 window.__game = game;

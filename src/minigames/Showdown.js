@@ -36,7 +36,7 @@ export class ShowdownScene extends Phaser.Scene {
   create(data = {}) {
     fadeIn(this);
     background(this, 'bg_title').setAlpha(0.45);
-    this.add.rectangle(320, 180, 640, 360, C.ink, 0.55).setDepth(-5);
+    this.add.rectangle(320, 180, 2000, 360, C.ink, 0.55).setDepth(-5);
     this.returnTo = data.returnTo || hubScene();
     let id = data.game;
     if (!id) {
@@ -442,7 +442,7 @@ export class ShowdownScene extends Phaser.Scene {
   passTo(seat, msg = 'Everyone else, look away.') {
     return new Promise((resolve) => {
       const c = this.add.container(0, 0).setDepth(800);
-      c.add(this.add.rectangle(320, 180, 640, 360, C.ink, 1).setInteractive());
+      c.add(this.add.rectangle(320, 180, 2000, 360, C.ink, 1).setInteractive());
       c.add(text(this, 320, 110, `PASS THE PHONE TO`, { size: 12, ox: 0.5, color: T.grey }));
       c.add(text(this, 320, 140, this.name(seat).toUpperCase(), { size: 24, ox: 0.5, color: this.color(seat), strokeThickness: 6 }));
       c.add(text(this, 320, 180, msg, { size: 8, ox: 0.5, color: T.grey }));
@@ -474,7 +474,7 @@ export class ShowdownScene extends Phaser.Scene {
       await this.passTo(s, 'Side bet: will anyone STEAL?');
       bets[s] = await new Promise((resolve) => {
         const c = this.add.container(0, 0).setDepth(800);
-        c.add(this.add.rectangle(320, 180, 640, 360, C.ink, 0.92).setInteractive());
+        c.add(this.add.rectangle(320, 180, 2000, 360, C.ink, 0.92).setInteractive());
         c.add(text(this, 320, 100, `${this.name(s).toUpperCase()}: WILL ANYONE STEAL?`, { size: 12, ox: 0.5, color: this.color(s) }));
         c.add(text(this, 320, 124, 'Right guess pays 15g.', { size: 8, ox: 0.5, color: T.grey }));
         c.add(button(this, 150, 160, 160, 60, 'YES', () => { c.destroy(); resolve(true); }, { size: 16, fill: 0x6a2a3a, sub: 'they are snakes' }));
@@ -488,7 +488,7 @@ export class ShowdownScene extends Phaser.Scene {
       await this.passTo(s);
       pick[s] = await new Promise((resolve) => {
         const c = this.add.container(0, 0).setDepth(800);
-        c.add(this.add.rectangle(320, 180, 640, 360, C.ink, 1).setInteractive());
+        c.add(this.add.rectangle(320, 180, 2000, 360, C.ink, 1).setInteractive());
         c.add(text(this, 320, 80, `${this.name(s).toUpperCase()}, ${pot}g IS ON THE TABLE`, { size: 12, ox: 0.5, color: this.color(s) }));
         c.add(button(this, 120, 130, 190, 90, 'SPLIT', () => { c.destroy(); resolve('split'); }, { size: 16, fill: 0x2a5a3a, sub: 'be a good friend' }));
         c.add(button(this, 330, 130, 190, 90, 'STEAL', () => { c.destroy(); resolve('steal'); }, { size: 16, fill: 0x8a1c2b, sub: 'be yourself' }));
@@ -557,7 +557,7 @@ export class ShowdownScene extends Phaser.Scene {
     for (const s of this.players) {
       bets[s] = await new Promise((resolve) => {
         const c = this.add.container(0, 0).setDepth(800);
-        c.add(this.add.rectangle(320, 180, 640, 360, C.ink, 0.92).setInteractive());
+        c.add(this.add.rectangle(320, 180, 2000, 360, C.ink, 0.92).setInteractive());
         const amt = Math.min(BET, run.party[s].gold);
         c.add(text(this, 320, 50, `${this.name(s).toUpperCase()}: PICK A RACER (${amt}g bet)`, { size: 12, ox: 0.5, color: this.color(s) }));
         RACERS.forEach((r, k) => {

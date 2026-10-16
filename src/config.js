@@ -1,5 +1,5 @@
 // Global constants shared by every scene.
-export const VERSION = '0.6.1';
+export const VERSION = '0.6.2';
 
 // Internal resolution. Everything is drawn at this size and scaled up to the
 // screen with nearest-neighbour filtering, so pixel art stays crisp.
@@ -7,6 +7,16 @@ export const W = 640;
 export const H = 360;
 
 export const FONT = 'PressStart, monospace';
+
+// Phones are wider than 16:9. Landscape scenes are laid out on the 640x360
+// stage, but the canvas widens to the screen's real shape (up to 900) and
+// every scene's camera is centred on the stage, so the picture fills the whole
+// screen with no black bars. The extra width shows background only.
+export function landscapeSize() {
+  const iw = window.innerWidth || W, ih = window.innerHeight || H;
+  if (ih > iw) return { w: W, h: H }; // phone held upright: the "turn sideways" screen covers it anyway
+  return { w: Math.max(W, Math.min(900, Math.round((H * iw) / ih))), h: H };
+}
 
 // UI palette (hex numbers for Phaser graphics, strings for text).
 export const C = {

@@ -66,7 +66,7 @@ async function psychosis(scene, actors) {
   sfx('magic');
 
   // colour wash: shifts hue a couple of times a second, never full white
-  const wash = scene.add.rectangle(320, 180, 640, 360, 0x9b59d0, 0).setDepth(D);
+  const wash = scene.add.rectangle(320, 180, 2000, 360, 0x9b59d0, 0).setDepth(D);
   const hues = [0x9b59d0, 0x5fcde4, 0xf7c548, 0xd9473c, 0x6abe30];
   let hi = 0;
   const pulse = scene.time.addEvent({

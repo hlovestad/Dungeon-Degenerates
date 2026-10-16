@@ -10,7 +10,7 @@ export function powerMeter(scene, label = 'TAP IN THE GOLD!') {
   return new Promise((resolve) => {
     const D = 900;
     const cx = 320, cy = 150, w = 300, h = 18;
-    const shield = scene.add.rectangle(320, 180, 640, 360, C.ink, 0.25).setDepth(D).setInteractive();
+    const shield = scene.add.rectangle(320, 180, 2000, 360, C.ink, 0.25).setDepth(D).setInteractive();
     const g = scene.add.graphics().setDepth(D + 1);
     drawPanel(g, cx - w / 2 - 14, cy - 34, w + 28, 74, { fill: C.panel });
     // zones: weak (red) | good (cream) | perfect (gold, narrow, random spot)
@@ -56,7 +56,7 @@ export function powerMeter(scene, label = 'TAP IN THE GOLD!') {
 export function dodgePrompt(scene, warn = 'BIG ATTACK INCOMING...') {
   return new Promise((resolve) => {
     const D = 900;
-    const shield = scene.add.rectangle(320, 180, 640, 360, 0x3a0a14, 0.35).setDepth(D).setInteractive();
+    const shield = scene.add.rectangle(320, 180, 2000, 360, 0x3a0a14, 0.35).setDepth(D).setInteractive();
     const warnT = text(scene, 320, 120, warn, { size: 12, ox: 0.5, color: T.red, depth: D + 1 });
     const sub = text(scene, 320, 142, 'Wait for it... then TAP!', { size: 8, ox: 0.5, color: T.cream, depth: D + 1 });
     let live = false;

@@ -24,7 +24,7 @@ export class LobbyScene extends Phaser.Scene {
     fadeIn(this);
     window.__lobby = this;
     background(this, 'bg_goblin_casino');
-    this.add.rectangle(320, 180, 640, 360, C.ink, 0.55).setDepth(-5);
+    this.add.rectangle(320, 180, 2000, 360, C.ink, 0.55).setDepth(-5);
     this.ui = this.add.container(0, 0).setDepth(10);
     this.offs = [];
     this.events.once('shutdown', () => this.offs.forEach((f) => f()));
