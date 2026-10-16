@@ -96,7 +96,8 @@ export function finishGame() {
   if (winner !== null) out.push({ type: 'quip', who: winner, line: say(winner, 'win') });
   if (loser !== null && loser !== winner && rng.chance(0.7)) out.push({ type: 'quip', who: loser, line: say(loser, 'lose') });
 
-  A.picker = (A.picker + 1) % run.party.length;
+  const rot = A.seats || run.party.map((_, k) => k);
+  A.picker = rot[(rot.indexOf(A.picker) + 1) % rot.length];
 
   if (A.round >= A.total) {
     out.push({ type: 'over', ranking: ranking() });
@@ -139,7 +140,9 @@ export function say(i, kind) {
 // Random hub chatter: idle lines, trash talk at a friend who's here, and
 // broke/rich lines when they apply. Returns { who, line }.
 export function chatter() {
-  const i = rng.int(0, run.party.length - 1);
+  // only friends with lines of their own (goblin guests just listen)
+  const talkers = (run.arcade?.seats || run.party.map((_, k) => k)).filter((k) => QUIPS[run.party[k]?.race]);
+  const i = rng.pick(talkers);
   const h = run.party[i];
   const q = QUIPS[h.race];
   const roll = rng.next();
@@ -310,7 +313,7 @@ export function rollEvent() {
   const A = book();
   // half the time it's a friend's AFK gag
   if (rng.chance(0.5)) {
-    const i = rng.int(0, run.party.length - 1);
+    const i = rng.pick(run.arcade?.seats || run.party.map((_, k) => k));
     const race = run.party[i].race;
     if (AFK[race]) {
       const ev = AFK[race](i);

@@ -122,9 +122,6 @@ export class LobbyScene extends Phaser.Scene {
     this.offs.push(s.on('lobby', () => this.drawSeats()));
     this.offs.push(s.on('lost', (e) => this.lost(e.reason)));
     // client: the host started a game (or one is already running)
-    const go = (m) => this.scene.start('Stack', { net: s, init: m });
-    this.offs.push(s.on('start', go));
-    this.offs.push(s.on('snap', go));
     if (!s.isHost && s.game) s.send({ t: 'hello' }); // ask for a snapshot
   }
 
@@ -188,19 +185,22 @@ export class LobbyScene extends Phaser.Scene {
     B.add(button(this, 12, 304, 104, 48, 'LEAVE', () => { s.close(); this.menu(); }, { size: 10 }));
     if (s.isHost) {
       const ok = s.mySeat() >= 0;
-      const b = button(this, 400, 302, 228, 52, 'START STACK ATTACK', () => this.start(), { size: 10, fill: 0x2a5a3a, sub: ok ? 'Bots take the empty seats' : 'Pick your friend first' });
+      const a = button(this, 312, 302, 162, 52, 'ARCADE NIGHT', () => this.start('arcade'), { size: 10, fill: 0x6a2a3a, sub: ok ? '8 games, all of them' : 'Pick your friend first' });
+      const b = button(this, 480, 302, 154, 52, 'STACK ATTACK', () => this.start('stack'), { size: 10, fill: 0x2a5a3a, sub: ok ? 'just cards' : 'Pick your friend first' });
+      a.setEnabled(ok);
       b.setEnabled(ok);
-      B.add(b);
-      B.add(text(this, 132, 332, 'Share the code, then start.', { size: 8, color: T.grey }));
+      B.add([a, b]);
+      B.add(text(this, 132, 332, 'Then pick a mode.', { size: 8, color: T.grey }));
     } else {
       B.add(text(this, 132, 332, s.mySeat() < 0 ? 'Pick your friend.' : 'Waiting for the host to start...', { size: 8, color: T.grey }));
     }
   }
 
-  start() {
+  start(what) {
     sfx('jackpot');
     run.stackMatch = null; // fresh scoreboard
-    this.scene.start('Stack', { net: session });
+    if (what === 'arcade') this.scene.start('Arcade', { net: session, fresh: true });
+    else this.scene.start('Stack', { net: session });
   }
 
   share() {

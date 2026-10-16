@@ -1,4 +1,5 @@
 import { W, H, landscapeSize } from './config.js';
+import { setRouter } from './net/session.js';
 import { BootScene } from './scenes/Boot.js';
 import { TitleScene } from './scenes/Title.js';
 import { PartyScene } from './scenes/Party.js';
@@ -14,6 +15,7 @@ import { ShowdownScene } from './minigames/Showdown.js';
 import { ArcadeScene } from './scenes/Arcade.js';
 import { StackScene } from './minigames/Stack.js';
 import { LobbyScene } from './scenes/Lobby.js';
+import { PartyGameScene } from './minigames/PartyGame.js';
 import { WheelScene } from './minigames/Wheel.js';
 
 const game = new Phaser.Game({
@@ -29,7 +31,7 @@ const game = new Phaser.Game({
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   input: { activePointers: 2 },
-  scene: [BootScene, TitleScene, PartyScene, MapScene, BattleScene, ShopScene, CasinoScene, EventScene, EndScene, TriviaScene, WhackScene, ShowdownScene, WheelScene, ArcadeScene, StackScene, LobbyScene],
+  scene: [BootScene, TitleScene, PartyScene, MapScene, BattleScene, ShopScene, CasinoScene, EventScene, EndScene, TriviaScene, WhackScene, ShowdownScene, WheelScene, ArcadeScene, StackScene, LobbyScene, PartyGameScene],
 });
 
 // Centre a landscape scene's camera on the 640-wide stage (tall scenes,
@@ -62,6 +64,17 @@ window.addEventListener('pointerdown', () => {
     }).catch(() => {});
   }
 }, { once: true });
+
+// Online: the host tells client phones which scene to be in.
+setRouter((net, m) => {
+  const active = game.scene.getScenes(true).map((s) => s.scene.key);
+  if (m.t === 'start' && active.includes('Stack')) return; // the card table restarts itself
+  if (m.t === 'tolobby' && active.includes('Lobby')) return;
+  const key = m.t === 'start' ? 'Stack' : m.t === 'tolobby' ? 'Lobby' : m.scene;
+  const data = m.t === 'start' ? { net, init: m } : m.t === 'tolobby' ? {} : { net, init: m.init };
+  game.scene.getScenes(true).forEach((s) => s.scene.stop());
+  game.scene.start(key, data);
+});
 
 // Handy for debugging from the browser console.
 window.__game = game;

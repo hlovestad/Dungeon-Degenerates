@@ -1,26 +1,23 @@
-// ARCADE: party night. The four friends hang out in the goblin arcade (always
-// on screen), spin for a minigame, play it, and come back here. Between games
+// ARCADE: party night. The friends hang out in the goblin arcade (always on
+// screen), spin for a minigame, play it, and come back here. Between games
 // they talk trash, wander off for their running gags, and the arcade does
 // something stupid. Most games won after the last one wins the night.
-import { T, C, SPRITE_HEIGHT } from '../config.js';
+//
+// Local (one phone, bots) or ONLINE: the host phone runs the night (spins,
+// events, chatter, scores) and every phone sees the same thing. Whoever's turn
+// it is to pick spins from their own phone; bots pick for themselves.
+import { T, C } from '../config.js';
 import { text, panel, button, iconButton, fadeTo, fadeIn, dimmer, bubble } from '../ui/ui.js';
 import { background, portraitActor, spawnDaniPortrait } from '../ui/stage.js';
-import { run, rng } from '../systems/state.js';
+import { run, rng, ensureGuest } from '../systems/state.js';
 import * as A from '../systems/arcade.js';
-import { RACES } from '../data/races.js';
-import { fitHeight, poseKey, isReal } from '../art/assets.js';
+import { RACES, GUESTS } from '../data/races.js';
+import { fitHeight, faceKey } from '../art/assets.js';
 import { sfx, toggleMute, isMuted, unlockAudio } from '../audio/sfx.js';
 import { playInterlude, speak } from '../ui/interlude.js';
 import { playChaos } from '../ui/chaos.js';
 import { openCardMenu } from '../ui/cardMenu.js';
 
-// Where each friend's portrait hangs (bottom-centre of the frame).
-const SPOTS = [
-  { x: 89, y: 236 },
-  { x: 243, y: 236 },
-  { x: 397, y: 236 },
-  { x: 551, y: 236 },
-];
 export const ARCADE_PICKS = ['haakon', 'mike', 'josh', 'griffin'].map((race) => ({
   race, cls: { haakon: 'juggernaut', mike: 'goblin_king', josh: 'cosmic_oracle', griffin: 'hellbound_gambler' }[race],
 }));
@@ -29,16 +26,46 @@ export class ArcadeScene extends Phaser.Scene {
   constructor() { super('Arcade'); }
 
   create(data = {}) {
-    if (data.fresh || !A.isArcade()) A.startArcade(data.picks || ARCADE_PICKS, { games: data.games || 8 });
     window.__arcade = this;
+    this.net = data.net || null;
+    this.role = !this.net ? 'local' : this.net.isHost ? 'host' : 'client';
+    this.offs = [];
+    this.over = false; // (Phaser reuses this object: reset per visit)
+    this.idle = 0;
+    this.busy = false;
+    this.events.once('shutdown', () => { this.offs.forEach((f) => f()); if (this.role === 'host') this.net.snapshot = null; });
+    let items = [];
+
+    if (this.role === 'client') {
+      this.applyHub(data.init.hub);
+      items = data.init.items || [];
+    } else {
+      if (data.fresh || !A.isArcade()) A.startArcade(data.picks || ARCADE_PICKS, { games: data.games || 8 });
+      // online: goblin guests who joined the room play the whole night too
+      const guests = this.net ? GUESTS.map((_, k) => 4 + k).filter((g) => this.net.seats[g]) : [];
+      guests.forEach((g) => ensureGuest(g, GUESTS[g - 4]));
+      run.arcade.seats = run.arcade.seats && !data.fresh ? run.arcade.seats : [0, 1, 2, 3, ...guests];
+      items = A.finishGame(); // coming back from a game? settle it
+    }
+    this.me = this.net ? this.net.mySeat() : 0;
+    this.seats = run.arcade.seats || [0, 1, 2, 3];
+
     fadeIn(this);
     background(this, 'bg_goblin_casino');
     this.busy = false;
 
     // the friends: big framed portraits (the arcade never uses full bodies)
-    this.actors = run.party.map((h, i) => portraitActor(this, h.race, SPOTS[i].x, SPOTS[i].y, { scale: 2, depth: 40 + i }));
-    const g = run.party.findIndex((h) => h.race === 'griffin');
-    if (g >= 0) this.dani = spawnDaniPortrait(this, this.actors[g], 1);
+    const n = this.seats.length;
+    const scale = n > 4 ? 1 : 2;
+    const gap = n > 4 ? 600 / n : 154;
+    this.actors = {};
+    this.seats.forEach((s, k) => {
+      const x = Math.round(320 - (gap * (n - 1)) / 2 + k * gap);
+      this.actors[s] = portraitActor(this, run.party[s].race, x, n > 4 ? 200 : 236, { scale, depth: 40 + k });
+      if (s === this.me && this.net) this.add.text(x, (n > 4 ? 200 : 236) + 22, 'YOU', { fontFamily: 'PressStart', fontSize: '8px', color: T.gold }).setOrigin(0.5, 0).setDepth(41);
+    });
+    const g = this.seats.find((s) => run.party[s].race === 'griffin');
+    if (g !== undefined) this.dani = spawnDaniPortrait(this, this.actors[g], scale === 2 ? 1 : 0.5);
 
     this.hud = this.add.container(0, 0).setDepth(25);
     this.drawHud();
@@ -50,13 +77,73 @@ export class ArcadeScene extends Phaser.Scene {
     this.drawBar();
     const mute = iconButton(this, 604, 312, isMuted() ? 'x' : '♪', () => { unlockAudio(); mute.setLabel(toggleMute() ? 'x' : '♪'); }, 61);
 
-    // coming back from a game? settle it, then let the chaos happen
-    const items = A.finishGame();
+    if (this.role === 'host') this.hostSetup(items);
+    if (this.role === 'client') this.clientSetup();
+
     if (items.length) this.time.delayedCall(450, () => this.settle(items));
     else this.time.delayedCall(700, () => this.greet());
 
-    // random chatter while nobody's doing anything
-    this.chatTimer = this.time.addEvent({ delay: 6500, loop: true, callback: () => this.chatter() });
+    // random chatter while nobody's doing anything (the host decides for everyone)
+    if (this.role !== 'client') this.chatTimer = this.time.addEvent({ delay: 6500, loop: true, callback: () => this.chatter() });
+  }
+
+  // ------------------------------------------------------------ online plumbing
+  hubState() {
+    return {
+      arcade: JSON.parse(JSON.stringify(run.arcade)),
+      party: run.party.map((h) => ({ race: h.race, gold: h.gold, crowns: h.crowns, cards: h.cards.slice() })),
+    };
+  }
+
+  applyHub(hub) {
+    if (!run || run.mode !== 'arcade') A.startArcade(ARCADE_PICKS);
+    run.arcade = hub.arcade;
+    hub.party.forEach((p, i) => {
+      if (!p) return;
+      if (!run.party[i]) ensureGuest(i, p.race);
+      Object.assign(run.party[i], { gold: p.gold, crowns: p.crowns, cards: p.cards });
+    });
+  }
+
+  hostSetup(items) {
+    const n = this.net;
+    n.setGame('arcade');
+    n.snapshot = () => ({ scene: 'Arcade', init: { hub: this.hubState(), items: [] } });
+    n.send({ t: 'go', scene: 'Arcade', init: { hub: this.hubState(), items } });
+    this.offs.push(n.on('hubact', (m) => {
+      if (this.busy || m.seat !== run.arcade.picker) return;
+      if (m.kind === 'spin') this.spin();
+      else if (m.kind === 'pick') { const g = A.gameById(m.game); if (g) this.choose(g); }
+    }));
+    this.offs.push(n.on('lost', (e) => this.lost(e.reason)));
+    // a bot's turn to pick: it spins by itself after a moment
+    this.autoTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => this.autoPick() });
+  }
+
+  clientSetup() {
+    const n = this.net;
+    this.offs.push(n.on('say', (m) => {
+      if (m.chaos) this.chaos(m.chaos);
+      else speak(this, m.who, m.line, this.iopts());
+    }));
+    this.offs.push(n.on('hubspin', (m) => this.showSpin(A.gameById(m.game), m.picked)));
+    this.offs.push(n.on('lost', (e) => this.lost(e.reason)));
+  }
+
+  isHuman(seat) { return this.net ? !!this.net.seats[seat] : seat === 0; }
+  myTurn() { return this.net ? run.arcade.picker === this.me : true; }
+
+  autoPick() {
+    if (this.busy || this.over || this.isHuman(run.arcade.picker)) { this.idle = 0; return; }
+    this.idle = (this.idle || 0) + 1;
+    if (this.idle >= 3) { this.idle = 0; this.spin(); }
+  }
+
+  lost(reason) {
+    const L = this.add.container(0, 0).setDepth(990);
+    L.add(dimmer(this, 0.7, 0));
+    L.add(text(this, 320, 150, reason || 'Connection lost.', { size: 12, ox: 0.5, color: T.red }));
+    L.add(button(this, 245, 190, 150, 40, 'BACK', () => { this.net.close(); this.scene.start('Lobby'); }, { size: 10 }));
   }
 
   // ------------------------------------------------------------ HUD
@@ -64,20 +151,26 @@ export class ArcadeScene extends Phaser.Scene {
     this.hud.removeAll(true);
     const L = this.hud;
     const lead = A.ranking()[0];
-    run.party.forEach((h, i) => {
-      const x = 6 + i * 157, w = 152;
+    const n = this.seats.length;
+    const w = Math.min(152, Math.floor(628 / n) - 5);
+    this.seats.forEach((i, k) => {
+      const h = run.party[i];
+      const x = 6 + k * (w + 5);
       const top = lead && lead.i === i && h.crowns > 0;
       L.add(panel(this, x, 4, w, 42, { alpha: 0.92, border: top ? C.gold : C.border, fill: top ? 0x3b2a52 : C.panel }));
-      const pk = isReal(`${h.race}_portrait`) ? `${h.race}_portrait` : poseKey(this, h.race, 'idle');
-      const s = this.add.image(x + 15, 43, pk).setOrigin(0.5, 1);
+      const s = this.add.image(x + 15, 43, faceKey(this, h.race)).setOrigin(0.5, 1);
       fitHeight(s, 36);
       L.add(s);
       L.add(text(this, x + 32, 9, h.name.toUpperCase() + (run.arcade.picker === i ? ' *' : ''), { size: 8, color: RACES[h.race].color }));
       L.add(this.add.image(x + 38, 31, 'icon_gold_coin').setScale(0.75));
       L.add(text(this, x + 48, 26, String(h.gold), { size: 8, color: T.gold }));
-      L.add(this.add.image(x + 92, 31, 'icon_crown').setScale(0.75));
-      L.add(text(this, x + 102, 26, String(h.crowns), { size: 8, color: T.white }));
-      L.add(text(this, x + 128, 26, `C${h.cards.length}`, { size: 8, color: T.purple }));
+      if (w >= 110) {
+        L.add(this.add.image(x + 92, 31, 'icon_crown').setScale(0.75));
+        L.add(text(this, x + 102, 26, String(h.crowns), { size: 8, color: T.white }));
+        if (!this.net) L.add(text(this, x + 128, 26, `C${h.cards.length}`, { size: 8, color: T.purple }));
+      } else {
+        L.add(text(this, x + w - 6, 26, `${h.crowns}W`, { size: 8, ox: 1, color: T.white }));
+      }
     });
   }
 
@@ -85,21 +178,33 @@ export class ArcadeScene extends Phaser.Scene {
     const a = run.arcade;
     const n = Math.min(a.round + 1, a.total);
     const pot = a.pot ? `   POT ${a.pot}g` : '';
-    this.info.setText(a.round >= a.total ? 'THAT WAS THE LAST GAME' : `GAME ${n} OF ${a.total}   ${run.party[a.picker].name.toUpperCase()} SPINS${pot}`);
+    this.info.setText(a.round >= a.total ? 'THAT WAS THE LAST GAME' : `GAME ${n} OF ${a.total}   ${run.party[a.picker].name.toUpperCase()} PICKS${pot}`);
   }
 
   drawBar() {
     this.bar.removeAll(true);
     const B = this.bar;
-    B.add(panel(this, 0, 296, 640, 64, { alpha: 0.9 }));
+    B.add(panel(this, -200, 296, 1040, 64, { alpha: 0.9 }));
     const over = run.arcade.round >= run.arcade.total;
     if (over) return;
     const who = run.party[run.arcade.picker].name.toUpperCase();
-    B.add(button(this, 8, 302, 200, 52, 'SPIN', () => this.spin(), { size: 14, fill: 0x6a2a3a, sub: `${who} spins the wheel` }));
-    B.add(button(this, 214, 302, 150, 52, 'PICK GAME', () => this.pickMenu(), { size: 10, fill: 0x2a3a6a, sub: `${who} chooses` }));
-    const n = run.party.reduce((k, h) => k + h.cards.length, 0);
-    B.add(button(this, 370, 302, 150, 52, 'DIRTY CARDS', () => this.cards(), { size: 10, fill: 0x4a2a5a, sub: `${n} in play` }));
-    B.add(button(this, 526, 302, 68, 52, 'QUIT', () => fadeTo(this, 'Title'), { size: 8 }));
+    if (this.myTurn()) {
+      B.add(button(this, 8, 302, 200, 52, 'SPIN', () => this.tapSpin(), { size: 14, fill: 0x6a2a3a, sub: this.net ? 'your pick: spin for it' : `${who} spins the wheel` }));
+      B.add(button(this, 214, 302, 150, 52, 'PICK GAME', () => this.pickMenu(), { size: 10, fill: 0x2a3a6a, sub: this.net ? 'or choose one' : `${who} chooses` }));
+    } else {
+      B.add(text(this, 20, 328, this.isHuman(run.arcade.picker) ? `${who} IS PICKING THE NEXT GAME...` : `${who} (BOT) IS PICKING...`, { size: 10, oy: 0.5, color: RACES[run.party[run.arcade.picker].race].color }));
+    }
+    if (!this.net) {
+      const n = run.party.reduce((k, h) => k + h.cards.length, 0);
+      B.add(button(this, 370, 302, 150, 52, 'DIRTY CARDS', () => this.cards(), { size: 10, fill: 0x4a2a5a, sub: `${n} in play` }));
+    }
+    if (this.role !== 'client') B.add(button(this, 526, 302, 68, 52, this.net ? 'END' : 'QUIT', () => this.quit(), { size: 8 }));
+    else B.add(button(this, 526, 302, 68, 52, 'LEAVE', () => { this.net.close(); this.scene.start('Lobby'); }, { size: 8 }));
+  }
+
+  quit() {
+    if (this.net) { this.net.send({ t: 'tolobby' }); this.net.setGame(null); this.scene.start('Lobby'); }
+    else fadeTo(this, 'Title');
   }
 
   setBusy(b) {
@@ -109,26 +214,36 @@ export class ArcadeScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ chatter
   greet() {
-    if (run.arcade.round === 0) {
-      speak(this, 0, rng.pick(['Welcome to the goblin arcade, degenerates.', 'Eight games. Winner gets bragging rights forever.', "Who's ready to lose?"]), this.iopts());
+    if (run.arcade.round === 0 && this.role !== 'client') {
+      this.say(this.seats[0], rng.pick(['Welcome to the goblin arcade, degenerates.', 'Eight games. Winner gets bragging rights forever.', "Who's ready to lose?"]));
     }
   }
 
+  // host/local: say something, and tell the other phones
+  say(who, line) {
+    speak(this, who, line, this.iopts());
+    if (this.role === 'host') this.net.send({ t: 'say', who, line });
+  }
+
   chatter() {
-    if (this.busy || this.chaosRunning) return;
-    if (this.dani && rng.chance(0.08)) { speak(this, 'dani', A.daniLine(), this.iopts()); return; }
+    if (this.busy || this.chaosRunning || this.over) return;
+    if (this.dani && rng.chance(0.08)) { this.say('dani', A.daniLine()); return; }
     if (rng.chance(0.65)) {
       const c = A.chatter();
-      speak(this, c.who, c.line, this.iopts());
+      if (this.seats.includes(c.who)) this.say(c.who, c.line);
     }
     // very rarely, chaos just happens on its own
-    if (rng.chance(0.04)) this.chaos(A.pickChaos());
+    if (rng.chance(0.04)) {
+      const id = A.pickChaos();
+      if (this.role === 'host') this.net.send({ t: 'say', chaos: id });
+      this.chaos(id);
+    }
   }
 
   iopts() {
     return {
       actorOf: (i) => this.actors[i],
-      actors: [...this.actors, this.dani].filter(Boolean),
+      actors: [...Object.values(this.actors), this.dani].filter(Boolean),
       dani: this.dani,
       onGold: () => { this.drawHud(); this.refreshInfo(); },
     };
@@ -146,7 +261,7 @@ export class ArcadeScene extends Phaser.Scene {
     const res = items.find((x) => x.type === 'result');
     if (res) await this.showResult(res);
     const pot = items.find((x) => x.type === 'pot');
-    if (pot) {
+    if (pot && this.actors[pot.to]) {
       bubble(this, this.actors[pot.to].x, 100, `+${pot.amt}g from the goblin pot!`, 1800);
       await this.wait(1200);
     }
@@ -162,7 +277,7 @@ export class ArcadeScene extends Phaser.Scene {
   async showResult(r) {
     const game = A.gameById(run.arcade.lastGame);
     const L = this.add.container(0, 0).setDepth(850);
-    if (r.winner !== null) {
+    if (r.winner !== null && run.party[r.winner]) {
       const w = run.party[r.winner];
       sfx('win');
       const t = text(this, 320, 120, `${w.name.toUpperCase()} WINS ${game ? game.name : ''}!`, { size: 14, ox: 0.5, color: RACES[w.race].color, strokeThickness: 6, wrap: 600, align: 'center' });
@@ -171,53 +286,75 @@ export class ArcadeScene extends Phaser.Scene {
       L.add(t);
       L.add(text(this, 320, 146, '+1 CROWN', { size: 10, ox: 0.5, color: T.gold, strokeThickness: 4 }));
       const a = this.actors[r.winner];
-      a.setPose('victory');
-      this.tweens.add({ targets: a, y: a.y - 8, duration: 160, yoyo: true, repeat: 2, ease: 'Quad.Out' });
-      if (r.loser !== null && r.loser !== r.winner) this.actors[r.loser].setPose('hurt');
+      if (a) {
+        a.setPose('victory');
+        this.tweens.add({ targets: a, y: a.y - 8, duration: 160, yoyo: true, repeat: 2, ease: 'Quad.Out' });
+      }
+      if (r.loser !== null && r.loser !== r.winner) this.actors[r.loser]?.setPose('hurt');
     } else {
       L.add(text(this, 320, 130, 'NOBODY WON. THE GOBLINS KEEP IT ALL.', { size: 10, ox: 0.5, color: T.grey, strokeThickness: 4 }));
       sfx('lose');
     }
     // everyone's take from that game
     r.deltas.forEach((d, i) => {
-      if (!d) return;
       const a = this.actors[i];
+      if (!d || !a) return;
       const f = text(this, a.x, a.y - a.h - 8, `${d > 0 ? '+' : ''}${d}g`, { size: 10, ox: 0.5, oy: 1, color: d > 0 ? T.gold : T.red, strokeThickness: 4 });
       L.add(f);
     });
     this.drawHud();
     await this.wait(2200);
-    this.actors.forEach((a) => a.setPose('idle'));
+    Object.values(this.actors).forEach((a) => a.setPose('idle'));
     this.tweens.add({ targets: L, alpha: 0, duration: 250, onComplete: () => L.destroy() });
     await this.wait(260);
   }
 
   // ------------------------------------------------------------ picking a game
+  tapSpin() {
+    if (this.busy) return;
+    unlockAudio();
+    if (this.role === 'client') { this.net.send({ t: 'hubact', seat: this.me, kind: 'spin' }); this.bar.setVisible(false); return; }
+    this.spin();
+  }
+
+  // host / local: decide the game, show the spin everywhere, then go
   spin() {
     if (this.busy) return;
-    this.setBusy(true);
-    unlockAudio();
     const pick = A.spinGame();
-    const L = this.add.container(0, 0).setDepth(850);
-    L.add(panel(this, 150, 110, 340, 80, { border: C.gold }));
-    L.add(text(this, 320, 122, `${run.party[run.arcade.picker].name.toUpperCase()} SPINS...`, { size: 8, ox: 0.5, color: T.grey }));
-    const name = text(this, 320, 154, '', { size: 14, ox: 0.5, oy: 0.5, color: T.gold });
-    L.add(name);
-    const names = A.ARCADE_GAMES.map((g) => g.name);
-    let k = rng.int(0, names.length - 1);
-    const steps = 18;
-    let n = 0;
-    const tick = () => {
-      n++;
-      name.setText(n >= steps ? pick.name : names[k++ % names.length]);
-      sfx(n >= steps ? 'jackpot' : 'step');
-      if (n < steps) this.time.delayedCall(50 + n * n * 1.1, tick);
-      else {
-        this.tweens.add({ targets: name, scale: 1.25, duration: 160, yoyo: true });
-        this.time.delayedCall(1100, () => this.launch(pick));
-      }
-    };
-    tick();
+    if (this.role === 'host') this.net.send({ t: 'hubspin', game: pick.id });
+    this.showSpin(pick, false).then(() => this.launch(pick));
+  }
+
+  choose(game) {
+    if (this.busy) return;
+    if (this.role === 'host') this.net.send({ t: 'hubspin', game: game.id, picked: true });
+    this.showSpin(game, true).then(() => this.launch(game));
+  }
+
+  showSpin(pick, picked) {
+    this.setBusy(true);
+    return new Promise((done) => {
+      const L = this.add.container(0, 0).setDepth(850);
+      L.add(panel(this, 150, 110, 340, 80, { border: C.gold }));
+      L.add(text(this, 320, 122, `${run.party[run.arcade.picker].name.toUpperCase()} ${picked ? 'PICKS' : 'SPINS'}...`, { size: 8, ox: 0.5, color: T.grey }));
+      const name = text(this, 320, 154, '', { size: 14, ox: 0.5, oy: 0.5, color: T.gold });
+      L.add(name);
+      const names = A.ARCADE_GAMES.map((g) => g.name);
+      let k = Math.floor(Math.random() * names.length);
+      const steps = picked ? 1 : 18;
+      let n = 0;
+      const tick = () => {
+        n++;
+        name.setText(n >= steps ? pick.name : names[k++ % names.length]);
+        sfx(n >= steps ? 'jackpot' : 'step');
+        if (n < steps) this.time.delayedCall(50 + n * n * 1.1, tick);
+        else {
+          this.tweens.add({ targets: name, scale: 1.25, duration: 160, yoyo: true });
+          this.time.delayedCall(1100, done);
+        }
+      };
+      tick();
+    });
   }
 
   pickMenu() {
@@ -230,8 +367,13 @@ export class ArcadeScene extends Phaser.Scene {
     L.add(text(this, 320, 28, `${run.party[run.arcade.picker].name.toUpperCase()} PICKS THE GAME`, { size: 12, ox: 0.5, color: T.gold }));
     A.ARCADE_GAMES.forEach((g, i) => {
       const col = i % 5, row = Math.floor(i / 5);
-      const b = button(this, 24 + col * 120, 52 + row * 76, 112, 68, g.name, () => { L.destroy(); this.launch(g); }, {
-        size: 8, sub: g.solo ? `${run.party[run.arcade.picker].name} plays` : 'everyone plays',
+      const b = button(this, 24 + col * 120, 52 + row * 76, 112, 68, g.name, () => {
+        L.destroy();
+        if (this.role === 'client') { this.net.send({ t: 'hubact', seat: this.me, kind: 'pick', game: g.id }); return; }
+        this.setBusy(false);
+        this.choose(g);
+      }, {
+        size: 8, sub: this.net ? (g.id === 'wheel' ? 'picker spins' : 'everyone plays') : g.solo ? `${run.party[run.arcade.picker].name} plays` : 'everyone plays',
         fill: g.id === run.arcade.lastGame ? 0x2a2a3a : C.panelHi,
       });
       L.add(b);
@@ -242,6 +384,13 @@ export class ArcadeScene extends Phaser.Scene {
   launch(game) {
     A.beginGame(game);
     sfx('select');
+    if (this.role === 'host') {
+      // everyone's phone follows the host into the game
+      if (game.id === 'stack') this.scene.start('Stack', { net: this.net, arcade: true, returnTo: 'Arcade' });
+      else this.scene.start('PartyGame', { net: this.net, game: game.id, seats: this.seats });
+      return;
+    }
+    if (this.role === 'client') return; // the host moves us
     fadeTo(this, game.scene, { ...game.data, returnTo: 'Arcade' });
   }
 
@@ -252,28 +401,33 @@ export class ArcadeScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ end of the night
   final(ranking) {
-    this.chatTimer.remove();
+    this.over = true;
+    this.chatTimer?.remove();
     const L = this.add.container(0, 0).setDepth(900);
     L.add(dimmer(this, 0.6, 0));
-    L.add(panel(this, 110, 50, 420, 246, { border: C.gold }));
-    const champ = run.party[ranking[0].i];
-    L.add(text(this, 320, 62, 'END OF THE NIGHT', { size: 12, ox: 0.5, color: T.gold }));
-    L.add(text(this, 320, 82, `${champ.name.toUpperCase()} IS THE BIGGEST DEGENERATE`, { size: 8, ox: 0.5, color: RACES[champ.race].color }));
-    ranking.forEach((r, k) => {
+    L.add(panel(this, 110, 40, 420, 268, { border: C.gold }));
+    const rk = ranking.filter((r) => this.seats.includes(r.i));
+    const champ = run.party[rk[0].i];
+    L.add(text(this, 320, 52, 'END OF THE NIGHT', { size: 12, ox: 0.5, color: T.gold }));
+    L.add(text(this, 320, 72, `${champ.name.toUpperCase()} IS THE BIGGEST DEGENERATE`, { size: 8, ox: 0.5, color: RACES[champ.race].color }));
+    rk.forEach((r, k) => {
       const h = run.party[r.i];
-      const y = 104 + k * 40;
-      const pk = isReal(`${h.race}_portrait`) ? `${h.race}_portrait` : poseKey(this, h.race, 'idle');
-      const s = this.add.image(150, y + 34, pk).setOrigin(0.5, 1);
-      fitHeight(s, 34);
+      const y = 88 + k * (rk.length > 4 ? 32 : 40);
+      const s = this.add.image(150, y + 30, faceKey(this, h.race)).setOrigin(0.5, 1);
+      fitHeight(s, 28);
       L.add(s);
       L.add(text(this, 176, y + 10, `${k + 1}. ${h.name}`, { size: 10, color: RACES[h.race].color }));
       L.add(text(this, 500, y + 10, `${r.crowns} crowns  ${r.gold}g`, { size: 8, ox: 1, color: T.gold }));
     });
-    this.actors[ranking[0].i].setPose('victory');
+    this.actors[rk[0].i]?.setPose('victory');
     sfx('jackpot');
-    speak(this, ranking[0].i, A.say(ranking[0].i, 'win'), this.iopts(), 4000);
-    L.add(button(this, 160, 302, 150, 44, 'PLAY AGAIN', () => fadeTo(this, 'Arcade', { fresh: true }), { size: 10, fill: 0x2a5a3a }));
-    L.add(button(this, 330, 302, 150, 44, 'TITLE', () => fadeTo(this, 'Title'), { size: 10 }));
+    if (this.role !== 'client') this.say(rk[0].i, A.say(rk[0].i, 'win'));
+    if (this.role === 'client') {
+      L.add(text(this, 320, 322, 'Waiting for the host...', { size: 8, ox: 0.5, color: T.grey }));
+    } else {
+      L.add(button(this, 160, 312, 150, 40, 'PLAY AGAIN', () => (this.net ? this.scene.start('Arcade', { net: this.net, fresh: true }) : fadeTo(this, 'Arcade', { fresh: true })), { size: 10, fill: 0x2a5a3a }));
+      L.add(button(this, 330, 312, 150, 40, this.net ? 'LOBBY' : 'TITLE', () => this.quit(), { size: 10 }));
+    }
   }
 
   wait(ms) { return new Promise((res) => this.time.delayedCall(ms, res)); }

@@ -27,4 +27,6 @@ Read `docs/HANDOFF_FROM_CHATGPT.md` for the full vision. Locked-in rules:
 
 - `node tools/sim.mjs` (balance + catches rule crashes)
 - `node tools/stack_sim.mjs` (card game: 3000 bot games, card count + no stalls)
+- `node tools/party_sim.mjs` (online party games: every game with bots)
+- Phaser reuses scene objects: reset every per-visit flag at the top of `create()`.
 - Load the game in a phone-sized landscape viewport and play a fight.

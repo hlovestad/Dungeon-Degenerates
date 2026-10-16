@@ -4,8 +4,9 @@
 //
 // Messages (all carry `from`, the sender's id):
 //   client -> host : hello, claim {seat}, release, ping, act {seat, action}, last {seat},
-//                    ready {seat, on}, vote {seat, on}
-//   host -> all    : lobby {seats, game}, start {...}, ev {...}, snap {...}, post {...}, tolobby, bye
+//                    ready {seat, on}, vote {seat, on}, pin {seat, d}, hubact {seat, kind, game}
+//   host -> all    : lobby {seats, game}, go {scene, init}, start {...}, ev {...}, post {...},
+//                    pg {...} (party game state), hub {...}, say {...}, tolobby, bye
 //
 // The host also counts as a player and claims a seat like everyone else.
 import { makeTransport } from './transport.js';
@@ -31,6 +32,12 @@ export function randomCode() {
 
 export let session = null;
 
+// The router moves a client phone between scenes when the host says so
+// ('go' = open this scene with this state, 'start' = a card game was dealt,
+// 'tolobby' = everyone back to the lobby). main.js installs it.
+let router = null;
+export function setRouter(fn) { router = fn; }
+
 export class Session {
   constructor(code, isHost, kind) {
     this.code = code;
@@ -44,6 +51,7 @@ export class Session {
     this.snapshot = null; // host: () => snap message for late joiners
     this.handlers = {};
     this.closed = false;
+    if (!isHost) ['go', 'start', 'tolobby'].forEach((t) => this.on(t, (m) => router && router(this, m)));
   }
 
   async open() {
@@ -126,7 +134,8 @@ export class Session {
     switch (m.t) {
       case 'hello':
         this.broadcastLobby();
-        if (this.game && this.snapshot) this.send({ ...this.snapshot(), t: 'snap', to: m.from });
+        // a late joiner (or a phone that missed messages) gets dropped into the current scene
+        if (this.game && this.snapshot) this.send({ ...this.snapshot(), t: 'go', to: m.from });
         break;
       case 'claim': this.hostClaim(m.from, m.seat); break;
       case 'release':
@@ -137,6 +146,8 @@ export class Session {
       case 'last':
       case 'ready':
       case 'vote':
+      case 'pin': // a party-game input
+      case 'hubact': // the arcade picker spinning / picking
         // only the phone that owns that seat may act for it
         if (this.seats[m.seat] === m.from) this.emit(m.t, m);
         break;
@@ -152,8 +163,8 @@ export class Session {
         this.game = m.game;
         this.emit('lobby', m);
         break;
-      case 'snap':
-        if (m.to === this.id) this.emit('snap', m);
+      case 'go':
+        if (!m.to || m.to === this.id) this.emit('go', m);
         break;
       case 'bye':
         this.emit('lost', { reason: 'The host left.' });

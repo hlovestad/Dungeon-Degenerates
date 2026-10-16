@@ -39,6 +39,8 @@ export class StackScene extends Phaser.Scene {
     this.auto = !!data.auto; // test mode: a bot plays your seat too
     this.net = data.net || null;
     this.role = !this.net ? 'local' : this.net.isHost ? 'host' : 'client';
+    // one round as part of an online arcade night (no ready-up; back to the arcade after)
+    this.arcadeMode = !!(data.arcade || data.init?.arcade);
     this.me = this.net ? this.net.mySeat() : (data.me ?? run.me ?? 0);
     this.spectator = this.me < 0;
     if (this.spectator) this.me = 0;
@@ -48,6 +50,7 @@ export class StackScene extends Phaser.Scene {
     this.finished = false;
     this.resultsReady = false;
     this.starting = false;
+    this.leaving = false;
     this.results = null;
     this.awaiting = null;
     this.remoteWait = null;
@@ -190,7 +193,7 @@ export class StackScene extends Phaser.Scene {
     this.offs.push(n.on('lost', (e) => this.lost(e.reason)));
     if (this.role === 'host') {
       n.setGame('stack');
-      n.snapshot = () => this.packet([]);
+      n.snapshot = () => ({ scene: 'Stack', init: this.packet([]) });
       n.send({ ...this.packet([]), t: 'start' });
       // A fast phone can answer before this phone has finished animating, so
       // early moves are kept (tagged with the state they answered) until used.
@@ -207,9 +210,7 @@ export class StackScene extends Phaser.Scene {
       this.offs.push(n.on('vote', (m) => this.setPost('vote', m.seat, m.on)));
     } else {
       this.offs.push(n.on('ev', (m) => this.receive(m)));
-      this.offs.push(n.on('snap', (m) => { this.seq = m.seq; this.st = m.st; this.pot = m.pot; this.setGold(m.gold); this.render(); this.clientPrompt(); }));
       this.offs.push(n.on('start', (m) => this.scene.restart({ net: n, init: m, returnTo: this.returnTo })));
-      this.offs.push(n.on('tolobby', () => this.scene.start('Lobby')));
       this.offs.push(n.on('post', (m) => { this.post = m.post; this.match = m.match; this.drawResults(); }));
       this.offs.push(n.on('lobby', () => { const me = n.mySeat(); if (me >= 0 && me !== this.me && !this.spectator) this.me = me; }));
     }
@@ -218,7 +219,7 @@ export class StackScene extends Phaser.Scene {
   packet(ev) {
     return {
       t: 'ev', seq: this.seq, ev, st: JSON.parse(JSON.stringify(this.st)), pot: this.pot, gold: run.party.map((h) => h.gold),
-      match: this.match, post: this.post, shuffled: this.shuffled,
+      match: this.match, post: this.post, shuffled: this.shuffled, arcade: this.arcadeMode,
     };
   }
 
@@ -777,7 +778,7 @@ export class StackScene extends Phaser.Scene {
     if (this.role !== 'client') {
       addGold(w, this.pot);
       S.recordWin(this.match, w);
-      this.post = { ready: {}, vote: {} };
+      if (!this.arcadeMode) this.post = { ready: {}, vote: {} };
     }
     if (this.role === 'host') { this.broadcast([]); this.net.setGame(null); }
     this.render();
@@ -787,11 +788,21 @@ export class StackScene extends Phaser.Scene {
     await this.wait(1400);
     this.resultsReady = true;
     this.drawResults();
+    if (this.arcadeMode && this.role === 'host') {
+      this.time.delayedCall(9000, () => this.backToArcade());
+      return;
+    }
     if (this.role !== 'client') {
       // keep checking: someone might drop out instead of readying up
       this.readyTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => this.checkReady() });
       if (this.auto) this.time.delayedCall(2500, () => this.setPost('ready', this.me, true));
     }
+  }
+
+  backToArcade() {
+    if (this.leaving) return;
+    this.leaving = true;
+    this.scene.start('Arcade', { net: this.net, back: true });
   }
 
   // seats played by real people (they ready up and vote; bots don't)
@@ -865,6 +876,11 @@ export class StackScene extends Phaser.Scene {
       const status = !isHuman ? 'BOT' : post.ready[x] ? 'READY' : '...';
       R.add(text(this, W - 20, y + 26, status, { size: 8, ox: 1, color: status === 'READY' ? T.green : T.grey }));
     });
+    if (this.arcadeMode) {
+      if (this.role === 'host') R.add(button(this, W / 2 - 80, top + 214, 160, 44, 'BACK TO ARCADE', () => this.backToArcade(), { size: 8, fill: 0x2a5a3a }));
+      else R.add(text(this, W / 2, top + 232, 'Back to the arcade in a moment...', { size: 8, ox: 0.5, color: T.grey }));
+      return;
+    }
     // ready + shuffle vote
     const by = top + 202;
     const v = S.voteCount(post, humans);

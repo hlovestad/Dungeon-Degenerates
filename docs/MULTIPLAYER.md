@@ -27,8 +27,12 @@ Add `?net=local` to the URL. Rooms then run over the browser's BroadcastChannel,
 several **tabs in the same browser** act as several phones (no internet needed).
 Host in one tab, then open the share link (it keeps `&net=local`) in other tabs.
 
-## What's online so far
+## What's online
 
-- STACK ATTACK: yes.
-- Arcade hub and the other minigames: not yet (they still run on one phone with bots).
+- **ARCADE NIGHT** (lobby button): the whole arcade. The host runs the hub (spins, quips, events,
+  chaos, crowns); whoever's turn it is picks from their own phone; bots pick for themselves.
+- Every minigame: rules in `src/systems/partygames.js`, screen in `src/minigames/PartyGame.js`.
+  Reflex games (quick draw, mash, clock, whack) are timed on each phone, so lag doesn't matter.
+- **STACK ATTACK** (lobby button, or one game of a night).
+- Test: `node tools/party_sim.mjs` (every party game, bots only).
 - Up to 6 players: the four friends (bots if empty) + two goblin guest seats (Grub, Snot) for extra people.
