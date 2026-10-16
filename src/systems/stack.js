@@ -7,7 +7,8 @@
 // - Plus cards STACK: +2 on any +2, +4 on any +4 (colour doesn't matter).
 //   Whoever can't (or won't) stack draws the whole pile and loses their turn.
 // - RIGHT BACK AT YA: play it when you're facing a plus pile. The whole pile
-//   goes to whoever plused you last, and you pick the colour (like a +4).
+//   goes to whoever plused you last, you pick the colour (like a +4), and it
+//   reverses the turn order (like a REVERSE).
 //   They can bounce it back with their own.
 // - SWAP HANDS (wild): pick a colour and swap hands with anyone.
 // - SKIP EVERYONE: everybody else is skipped, you go again.
@@ -33,7 +34,7 @@ export const CARD_HELP = {
   '+2': 'Next player draws 2, unless they stack a +2.',
   wild: 'Pick the colour.',
   '+4': 'Pick the colour. Next player draws 4, unless they stack a +4.',
-  rbay: 'Play when plused: pick the colour, and the whole pile goes back to whoever plused you.',
+  rbay: 'Play when plused: the whole pile goes back to whoever plused you. Pick the colour. Reverses the order.',
   swap: 'Pick the colour, then swap hands with anyone.',
   skipall: 'Everybody else is skipped. Go again.',
 };
@@ -186,9 +187,12 @@ export function play(st, seat, cardId, opts = {}) {
       break;
     }
     case 'rbay': {
+      // the pile goes back to whoever plused you, and it's also a REVERSE
       const back = st.pending.from;
       st.pending = { ...st.pending, from: seat };
+      st.dir *= -1;
       ev.push({ t: 'bounce', from: seat, to: back, amount: st.pending.amount });
+      ev.push({ t: 'reverse', dir: st.dir });
       setTurn(st, back);
       break;
     }
